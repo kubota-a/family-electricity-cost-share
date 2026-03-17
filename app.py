@@ -140,3 +140,13 @@ def user_top():
 def admin_top():
     """管理者用トップ画面を表示する。"""
     return render_template("admin_top.html")
+
+
+@app.route("/admin/users")
+@login_required
+@admin_required
+def admin_users():
+    """管理者用のユーザー一覧画面を表示する。"""
+    # ユーザー管理画面で表示する一覧を取得（古い登録順）
+    users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
+    return render_template("admin_users.html", users=users)

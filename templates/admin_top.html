@@ -160,8 +160,8 @@
             <h1>いえ電シェア<br>管理者パネル</h1>
         </div>
         <nav class="nav-menu">
-            <a href="#" class="nav-item active">HOME</a>
-            <a href="#" class="nav-item">シェアメンバー</a>
+            <a href="{{ url_for('admin_top') }}" class="nav-item active">HOME</a>
+            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
             <a href="#" class="nav-item">機器</a>
             <a href="#" class="nav-item">電気料金の確定</a>
             <a href="#" class="nav-item">確定済の電気料金</a>
@@ -410,4 +410,3 @@
     </main>
 </body>
 </html>
-
