@@ -1,0 +1,196 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア - ログイン</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #fff0f3;
+            --header-bg: #ffffff;
+            --text-color: #4a4a4a;
+            --accent-pink: #f5b7b1;
+            --accent-pink-dark: #c47a8a;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            --flash-green: #2ecc71;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* 上端から開始 */
+            min-height: 100vh;
+        }
+
+        /* コンテナの基本設定（スマホ基準） */
+        .phone-container {
+            width: 100%;
+            max-width: 430px;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* PCブラウザ（431px以上）のスタイル：比率固定とサイズ最適化 */
+        @media (min-width: 431px) {
+            body {
+                padding: 20px;
+                align-items: center; /* PCでは中央に浮かす */
+                height: 100vh;      /* 画面全体を固定 */
+                overflow: hidden;   /* 外側のスクロールを禁止 */
+            }
+            .phone-container {
+                width: min(390px, 100%); /* 幅を390pxに抑える */
+                min-height: auto;
+                aspect-ratio: 9 / 19.5;  /* 縦横比をスマホと同じにする */
+                border-radius: 40px;
+                border: 8px solid #222;
+                box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+                overflow: hidden;
+            }
+        }
+
+        main {
+            padding: 60px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* コンテンツを中央に配置 */
+            flex-grow: 1;
+        }
+
+        /* ロゴ部分 */
+        .login-logo {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .login-logo i {
+            font-size: clamp(3rem, 12vw, 4rem);
+            color: var(--accent-pink);
+            margin-bottom: 10px;
+        }
+
+        .login-logo span {
+            display: block;
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            font-weight: bold;
+            color: var(--accent-pink-dark);
+            letter-spacing: 0.1em;
+        }
+
+        /* フォーム部分 */
+        .login-form {
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-color);
+            font-weight: bold;
+            font-size: clamp(0.9rem, 3.5vw, 1rem);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            background: var(--card-bg);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-pink);
+        }
+
+        /* Flashメッセージ領域 */
+        .flash-message {
+            color: var(--flash-green);
+            font-size: clamp(0.8rem, 3.2vw, 0.9rem);
+            text-align: center;
+            margin: 15px 0 30px;
+            min-height: 1.2em;
+            font-weight: bold;
+        }
+
+        /* ログインボタン */
+        .login-button {
+            width: 100%;
+            max-width: 220px;
+            padding: 12px;
+            border-radius: 50px;
+            border: 3px solid #888;
+            background: #ffffff;
+            color: var(--text-color);
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0 auto;
+            display: block;
+            transition: all 0.3s;
+        }
+
+        .login-button:active {
+            transform: scale(0.98);
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <main>
+        <div class="login-logo">
+            <i class="fas fa-home"></i>
+            <span>いえ電シェア</span>
+        </div>
+
+        <form class="login-form" action="{{ url_for('login') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+                <label>ログインID</label>
+                <input type="text" name="login_id" value="{{ login_id }}">
+            </div>
+
+            <div class="form-group">
+                <label>パスワード</label>
+                <input type="password" name="password">
+            </div>
+
+            <div class="flash-message">
+                {% for message in get_flashed_messages() %}
+                    {{ message }}
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="login-button">
+                ログイン
+            </button>
+        </form>
+    </main>
+</div>
+
+</body>
+</html>

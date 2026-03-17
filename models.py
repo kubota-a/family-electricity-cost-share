@@ -1,17 +1,15 @@
-from flask_sqlalchemy import SQLAlchemy  # SQLAlchemy（ORM：PythonのクラスでDBを扱えるライブラリ）
-# from flask_login import UserMixin
-# from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy.sql import func  # Postgresでも安全な日時関数
+﻿from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+from sqlalchemy.sql import func
 
 
-# アプリ全体で共有する DB オブジェクト
 db = SQLAlchemy()
 
 
-# --- ○○モデル---
+# ---DBモデル---
 
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     __tablename__ = "users"
     __table_args__ = (    # CHECK制約
         db.CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),
@@ -148,3 +146,4 @@ class FinalizedBillMember(db.Model):
         "FinalizedBill", back_populates="finalized_bill_members"
     )
     user = db.relationship("User", back_populates="finalized_bill_members")
+
