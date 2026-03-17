@@ -1,9 +1,10 @@
 ﻿from flask import Flask, flash, redirect, render_template, request, url_for
-from flask_login import LoginManager, current_user, login_user, logout_user
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash
+from functools import wraps
 import os
 
 from models import db, User
@@ -72,6 +73,19 @@ def redirect_by_role(user):
     return redirect(url_for("login"))
 
 
+def admin_required(view_func):
+    """admin ロールのみ許可する共通デコレーター。"""
+    @wraps(view_func)
+    def wrapped_view(*args, **kwargs):
+        # 権限不足時は安全に自分のトップへ戻す
+        if current_user.role != "admin":
+            flash("このページには管理者のみアクセスできます。")
+            return redirect_by_role(current_user)
+        return view_func(*args, **kwargs)
+
+    return wrapped_view
+
+
 @app.route("/")
 def index():
     return "Family Electricity Share: Hello!"
@@ -111,3 +125,18 @@ def logout():
     """ログアウトしてログイン画面に戻す。"""
     logout_user()
     return redirect(url_for("login"))
+
+
+@app.route("/user/top")
+@login_required
+def user_top():
+    """ユーザー用トップ画面を表示する。"""
+    return render_template("user_top.html")
+
+
+@app.route("/admin/top")
+@login_required
+@admin_required
+def admin_top():
+    """管理者用トップ画面を表示する。"""
+    return render_template("admin_top.html")

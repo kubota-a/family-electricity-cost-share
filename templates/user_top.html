@@ -1,0 +1,273 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア - マイページ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #fff0f3;
+            --header-bg: #ffffff;
+            --text-color: #4a4a4a;
+            --accent-orange: #ff8c42;
+            --accent-pink: #f5b7b1;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .phone-container {
+            width: 100%;
+            max-width: 430px;
+            height: 90vh;
+            background-color: var(--bg-color);
+            position: relative;
+            /* 全体の overflow-y: auto; を維持しつつ、内部スクロールと干渉しないよう管理 */
+            overflow-y: hidden;
+            border-radius: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+            border: 8px solid #333;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* PCブラウザでの表示バランス最適化（他の画面と統一） */
+        @media (min-width: 431px) {
+            body {
+                padding: 20px;
+                height: 100vh;
+                overflow: hidden;
+            }
+            .phone-container {
+                width: min(390px, 100%);
+                height: auto;
+                aspect-ratio: 9 / 19.5;
+                max-height: 850px;
+            }
+        }
+
+        header {
+            background-color: var(--header-bg);
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-orange);
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .header-logo i {
+            font-size: 1.4rem;
+            color: #e8a0ad;
+        }
+
+        .header-logo span {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #c47a8a;
+        }
+
+        .lock-icon {
+            color: #888;
+            font-size: 1.2rem;
+        }
+
+        .lock-button {
+            border: none;
+            background: transparent;
+            color: inherit;
+            font-size: inherit;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        main {
+            padding: 20px;
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* main自体は固定し、内部をスクロールさせる */
+        }
+
+        h1 {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 25px;
+            font-weight: bold;
+        }
+
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-shrink: 0;
+        }
+
+        .action-card {
+            background: var(--card-bg);
+            padding: 20px 10px;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            text-decoration: none;
+            color: var(--text-color);
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            aspect-ratio: 1 / 1;
+            line-height: 1.5;
+        }
+
+        .action-card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: var(--accent-pink);
+        }
+
+        .section-title {
+            text-align: left;
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        /* 「暖房」から始まるリストをスクロール可能に */
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            padding-bottom: 10px;
+            /* スクロールバーを非表示にする設定（任意） */
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .device-list::-webkit-scrollbar {
+            display: none;
+        }
+
+        .device-item {
+            background: var(--card-bg);
+            padding: 15px 20px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow);
+            position: relative;
+            flex-shrink: 0; /* スクロール内で潰れないように固定 */
+        }
+
+        .status-circle {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            margin-right: 15px;
+        }
+
+        .device-name {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #333;
+            flex-grow: 0;
+            text-align: center;
+        }
+
+        .color-heating { background-color: #ff9999; }
+        .color-stove-weak { background-color: #ffcc99; }
+        .color-stove-strong { background-color: #ff99cc; }
+        .color-cooling { background-color: #87ceeb; }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <header>
+        <div class="header-logo">
+            <i class="fas fa-home"></i>
+            <span>いえ電シェア</span>
+        </div>
+        <div class="lock-icon">
+            <form action="{{ url_for('logout') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="lock-button" aria-label="ログアウト">
+                    <i class="fas fa-lock"></i>
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <main>
+        <h1>花子さんのマイページ</h1>
+
+        <div class="action-grid">
+            <div class="action-card">
+                <i class="fas fa-plus action-card-icon"></i>
+                <div>忘れた分<br>を追加</div>
+            </div>
+            <div class="action-card">
+                <i class="fas fa-file-alt action-card-icon"></i>
+                <div>記録を<br>みる</div>
+            </div>
+        </div>
+
+        <p class="section-title">運転を開始する</p>
+
+        <div class="device-list">
+            <div class="device-item">
+                <div class="status-circle color-heating"></div>
+                <span class="device-name">暖房</span>
+            </div>
+            <div class="device-item">
+                <div class="status-circle color-stove-weak"></div>
+                <span class="device-name">ストーブ弱</span>
+            </div>
+            <div class="device-item">
+                <div class="status-circle color-stove-strong"></div>
+                <span class="device-name">ストーブ強</span>
+            </div>
+            <div class="device-item">
+                <div class="status-circle color-cooling"></div>
+                <span class="device-name">冷房</span>
+            </div>
+            <div class="device-item">
+                <div class="status-circle" style="background-color: #ddd;"></div>
+                <span class="device-name">予備デバイス</span>
+            </div>
+        </div>
+    </main>
+</div>
+
+</body>
+</html>

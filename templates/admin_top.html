@@ -1,0 +1,413 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア 管理者パネル</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #d88c8c;
+            --bg-color: #fdf8f8;
+            --sidebar-bg: #ffffff;
+            --text-main: #333;
+            --border-color: #eee;
+            --status-on-bg: #ffebee;
+            --status-on-text: #c62828;
+            --hover-row-color: #f1f7fc;
+            --delete-bg: #f5f5f5;
+            --delete-text: #757575;
+            --delete-accent: #d32f2f;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif; background-color: var(--bg-color); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* --- サイドバー --- */
+        .sidebar { width: 240px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; position: fixed; height: 100vh; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; }
+        .sidebar-header i { color: var(--primary-color); font-size: 1.2rem; }
+        .sidebar-header h1 { font-size: 1rem; line-height: 1.2; }
+
+        .nav-menu { flex-grow: 1; padding: 20px 0; }
+        .nav-item { padding: 12px 25px; cursor: pointer; display: block; text-decoration: none; color: var(--text-main); transition: 0.2s; font-weight: 500; }
+        .nav-item:hover { background: #fff5f5; color: var(--primary-color); }
+        .nav-item.active { border-left: 4px solid var(--primary-color); background: #fff5f5; color: var(--primary-color); }
+
+        .logout {
+            padding: 20px 25px;
+            border-top: 1px solid var(--border-color);
+            color: #888;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            background: transparent;
+            border-left: none;
+            border-right: none;
+            border-bottom: none;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        /* --- メインコンテンツ --- */
+        .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; max-width: 1200px; }
+
+        .flash-message { background: #e8f5e9; color: #2e7d32; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem; border: 1px solid #c8e6c9; }
+
+        .top-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .card { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+
+        .section-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 15px; color: #666; }
+
+        .confirm-box { text-align: center; }
+        .date-info { font-size: 1rem; margin-bottom: 10px; line-height: 1.6; font-weight: 500; }
+        .status-msg { font-weight: bold; margin: 10px 0; font-size: 1.1rem; }
+        .btn-primary { background: var(--primary-color); color: #fff; border: none; padding: 10px 30px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-primary:hover { opacity: 0.8; }
+
+        .unit-price-box { position: relative; }
+        .btn-save { position: absolute; top: 20px; right: 20px; padding: 4px 15px; border: 1px solid var(--primary-color); color: var(--primary-color); background: #fff; border-radius: 4px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+        .btn-save:hover { background: var(--primary-color); color: #fff; box-shadow: 0 2px 4px rgba(216, 140, 140, 0.3); }
+
+        .price-display { font-size: 1.5rem; font-weight: bold; text-align: center; margin: 10px 0; }
+        .radio-group { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+        .radio-item { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; }
+        .radio-item input[type="text"] { width: 80px; padding: 4px; border: 1px solid var(--border-color); text-align: right; }
+
+        /* --- カルーセル --- */
+        .carousel-container { margin-bottom: 30px; position: relative; }
+        .carousel-wrapper { display: flex; overflow-x: auto; gap: 12px; padding: 5px 0 15px 0; scrollbar-width: thin; scrollbar-color: #ddd transparent; }
+        .carousel-wrapper::-webkit-scrollbar { height: 6px; }
+        .carousel-wrapper::-webkit-scrollbar-track { background: transparent; }
+        .carousel-wrapper::-webkit-scrollbar-thumb { background: #ddd; border-radius: 10px; }
+
+        .member-card { min-width: calc((100% - (12px * 5)) / 5.5); flex: 0 0 auto; height: 120px; border-radius: 16px; border: 1px solid var(--border-color); padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; transition: 0.2s; }
+
+        .card-hanako { background-color: #fff0f3; }
+        .card-taro { background-color: #f0f4ff; }
+        .card-ichiro { background-color: #f1fcf0; }
+        .card-ryoko { background-color: #fff9f0; }
+        .card-naoki { background-color: #f2f2f2; }
+        .card-megumi { background-color: #fdf2ff; }
+        .card-kenta { background-color: #f2fbff; }
+        .card-misaki { background-color: #fffcf2; }
+        .card-shuhei { background-color: #f2fff9; }
+        .card-ai { background-color: #fff5f2; }
+
+        .member-name { font-size: 1.3rem; font-weight: bold; margin-bottom: 8px; }
+
+        .member-amount {
+            background-color: #ffffff;
+            width: 90%;
+            padding: 8px 0;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* --- テーブル --- */
+        .table-container { background: #fff; border-radius: 12px; border: 1px solid var(--border-color); overflow-y: auto; max-height: 500px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed; }
+        th { position: sticky; top: 0; background: #fff5f5; z-index: 10; padding: 15px; text-align: left; color: #884444; border-bottom: 2px solid var(--border-color); }
+
+        th:nth-child(1), td:nth-child(1) { width: 25%; }
+        th:nth-child(2), td:nth-child(2) { width: 12%; }
+        th:nth-child(3), td:nth-child(3) { width: 18%; }
+        th:nth-child(4), td:nth-child(4) { width: 15%; }
+        th:nth-child(5), td:nth-child(5) { width: 15%; }
+        th:nth-child(6), td:nth-child(6) { width: 15%; }
+
+        tbody tr { transition: background 0.2s; }
+        @media (hover: hover) {
+            tbody tr:hover { background-color: var(--hover-row-color); }
+        }
+
+        td { padding: 15px; border-bottom: 1px solid var(--border-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+
+        .badge-status { padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; border: none; }
+        .badge-on { background: var(--status-on-bg); color: var(--status-on-text); }
+        .btn-delete { background: var(--delete-bg); color: var(--delete-text); border: 1px solid #ddd; cursor: pointer; transition: 0.2s; justify-content: center; }
+        .btn-delete:hover { background: #fee2e2; color: var(--delete-accent); border-color: var(--delete-accent); }
+
+        .filter-area { display: flex; gap: 20px; justify-content: flex-end; margin-bottom: 15px; font-size: 0.85rem; align-items: center; flex-wrap: wrap; }
+        .filter-item { display: flex; align-items: center; gap: 8px; color: #555; }
+        .filter-item input[type="date"], .filter-item select { padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem; color: #333; outline: none; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid var(--border-color); }
+            .nav-menu { display: flex; overflow-x: auto; padding: 0; }
+            .nav-item { padding: 15px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
+            .nav-item.active { border-left: none; border-bottom: 3px solid var(--primary-color); }
+            .main-content { margin-left: 0; padding: 20px; }
+            .top-row { grid-template-columns: 1fr; }
+            .table-container { max-height: 400px; }
+            table { table-layout: auto; }
+            .member-card { min-width: 140px; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <i class="fas fa-home"></i>
+            <h1>いえ電シェア<br>管理者パネル</h1>
+        </div>
+        <nav class="nav-menu">
+            <a href="#" class="nav-item active">HOME</a>
+            <a href="#" class="nav-item">シェアメンバー</a>
+            <a href="#" class="nav-item">機器</a>
+            <a href="#" class="nav-item">電気料金の確定</a>
+            <a href="#" class="nav-item">確定済の電気料金</a>
+        </nav>
+        <form action="{{ url_for('logout') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="logout">
+                <i class="fas fa-sign-out-alt"></i> ログアウト
+            </button>
+        </form>
+    </aside>
+
+    <main class="main-content">
+        <div class="flash-message">
+            <i class="fas fa-info-circle"></i>
+            {% set messages = get_flashed_messages() %}
+            {% if messages %}
+                {{ messages[0] }}
+            {% else %}
+                ここに各flashメッセージを表示
+            {% endif %}
+        </div>
+
+        <div class="top-row">
+            <div class="card confirm-box">
+                <div class="date-info">
+                    最終確定 2025/12/21<br>
+                    2025/10/22〜2025/11/19利用分
+                </div>
+                <div class="status-msg">
+                    2025/11/20以降の<br>締の日と電気料金が未確定です。
+                </div>
+                <button class="btn-primary">確定させる</button>
+            </div>
+
+            <div class="card unit-price-box">
+                <button class="btn-save">保存</button>
+                <div class="section-title">現在の仮単価</div>
+                <div class="price-display">28.0<span style="font-size: 0.9rem;">円/kWh</span></div>
+                <div class="radio-group">
+                    <label class="radio-item">
+                        <span><input type="radio" name="price" checked> 任意の金額</span>
+                        <span><input type="text" value="28.0"> 円/kWh</span>
+                    </label>
+                    <label class="radio-item">
+                        <span><input type="radio" name="price"> 直近3ヶ月の平均値</span>
+                        <span>27.5円/kWh</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">2025/11/20以降の機器使用料金目安</div>
+        <div class="carousel-container">
+            <div class="carousel-wrapper">
+                <div class="member-card card-hanako">
+                    <div class="member-name">花子</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-taro">
+                    <div class="member-name">太郎</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-ichiro">
+                    <div class="member-name">一郎</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-ryoko">
+                    <div class="member-name">良子</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-naoki">
+                    <div class="member-name">直樹</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-megumi">
+                    <div class="member-name">恵</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-kenta">
+                    <div class="member-name">健太</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-misaki">
+                    <div class="member-name">美咲</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-shuhei">
+                    <div class="member-name">修平</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-ai">
+                    <div class="member-name">愛</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">2025/11/20以降の未確定記録一覧</div>
+
+        <div class="filter-area">
+            <div class="filter-item">
+                <i class="fas fa-calendar-alt"></i>
+                <input type="date"> 〜 <input type="date">
+            </div>
+            <div class="filter-item">
+                <i class="fas fa-user-friends"></i>
+                <select>
+                    <option value="">メンバーで絞り込み</option>
+                    <option value="hanako">花子</option>
+                    <option value="taro">太郎</option>
+                    <option value="ichiro">一郎</option>
+                    <option value="ryoko">良子</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="recordTable">
+                <thead>
+                    <tr>
+                        <th>使用開始日時</th>
+                        <th>メンバー</th>
+                        <th>機器</th>
+                        <th>使用時間</th>
+                        <th>料金目安</th>
+                        <th>状態</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2025/12/22(月) 18:30</td>
+                        <td>花子</td>
+                        <td>ストーブ弱</td>
+                        <td>45分</td>
+                        <td>23円</td>
+                        <td><span class="badge-status badge-on">運転中</span></td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/22(月) 12:15</td>
+                        <td>太郎</td>
+                        <td>暖房</td>
+                        <td>2時間30分</td>
+                        <td>80円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/21(日) 21:00</td>
+                        <td>花子</td>
+                        <td>暖房</td>
+                        <td>5時間12分</td>
+                        <td>150円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/21(日) 08:45</td>
+                        <td>一郎</td>
+                        <td>ストーブ強</td>
+                        <td>1時間05分</td>
+                        <td>31円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/20(土) 19:20</td>
+                        <td>良子</td>
+                        <td>コタツ</td>
+                        <td>3時間15分</td>
+                        <td>28円</td>
+                        <td><button class="badge-status btn-delete">削除済</button></td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/20(土) 07:10</td>
+                        <td>太郎</td>
+                        <td>暖房</td>
+                        <td>1時間20分</td>
+                        <td>42円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/19(金) 22:00</td>
+                        <td>花子</td>
+                        <td>ストーブ弱</td>
+                        <td>2時間00分</td>
+                        <td>61円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/19(金) 17:30</td>
+                        <td>一郎</td>
+                        <td>PCデスクヒーター</td>
+                        <td>4時間30分</td>
+                        <td>35円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/18(木) 20:15</td>
+                        <td>良子</td>
+                        <td>暖房</td>
+                        <td>6時間00分</td>
+                        <td>172円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/18(木) 06:45</td>
+                        <td>太郎</td>
+                        <td>ストーブ強</td>
+                        <td>0時間45分</td>
+                        <td>22円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/17(水) 23:30</td>
+                        <td>花子</td>
+                        <td>コタツ</td>
+                        <td>2時間40分</td>
+                        <td>24円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/17(水) 18:00</td>
+                        <td>一郎</td>
+                        <td>暖房</td>
+                        <td>3時間20分</td>
+                        <td>95円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/16(火) 19:50</td>
+                        <td>良子</td>
+                        <td>ストーブ弱</td>
+                        <td>1時間15分</td>
+                        <td>38円</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>2025/12/16(火) 07:20</td>
+                        <td>太郎</td>
+                        <td>暖房</td>
+                        <td>2時間10分</td>
+                        <td>68円</td>
+                        <td>-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</body>
+</html>
+
