@@ -1,5 +1,5 @@
 ﻿from flask import Flask, flash, redirect, render_template, request, url_for
-from flask_login import LoginManager, login_user
+from flask_login import LoginManager, current_user, login_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
@@ -60,6 +60,18 @@ def load_user(user_id):
         return None
 
 
+def redirect_by_role(user):
+    """role に応じて遷移先を分岐する。"""
+    # role分岐
+    if user.role == "admin":
+        return redirect(url_for("admin_top"))
+    if user.role == "user":
+        return redirect(url_for("user_top"))
+
+    flash("ロール設定が不正です。管理者に連絡してください。")
+    return redirect(url_for("login"))
+
+
 @app.route("/")
 def index():
     return "Family Electricity Share: Hello!"
@@ -69,6 +81,9 @@ def index():
 def login():
     """ログイン画面の表示とログイン処理を行う。"""
     if request.method == "GET":
+        # すでにログイン済みなら role に応じてトップへ戻す
+        if current_user.is_authenticated:
+            return redirect_by_role(current_user)
         return render_template("login.html", login_id="")
 
     login_id = request.form.get("login_id", "").strip()
@@ -86,6 +101,6 @@ def login():
         flash(INVALID_LOGIN_MESSAGE)
         return render_template("login.html", login_id=login_id)
 
-    # 認証成功時にログイン状態を作成（遷移先の詳細分岐はStep2-3で実装）
     login_user(user)
-    return redirect(url_for("index"))
+    # ログイン成功後は role に応じたトップへ遷移
+    return redirect_by_role(user)
