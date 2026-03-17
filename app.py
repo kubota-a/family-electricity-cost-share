@@ -1,5 +1,5 @@
 ﻿from flask import Flask, flash, redirect, render_template, request, url_for
-from flask_login import LoginManager, current_user, login_user
+from flask_login import LoginManager, current_user, login_user, logout_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
@@ -104,3 +104,10 @@ def login():
     login_user(user)
     # ログイン成功後は role に応じたトップへ遷移
     return redirect_by_role(user)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    """ログアウトしてログイン画面に戻す。"""
+    logout_user()
+    return redirect(url_for("login"))
