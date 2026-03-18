@@ -88,11 +88,148 @@
         .btn-delete-row:hover { color: #d32f2f; }
         .empty-row { height: 51px; }
 
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.4);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          opacity: 0;
+          visibility: hidden;
+          transition: all 0.3s ease;
+          z-index: 1000;
+          padding: 20px;
+          box-sizing: border-box;
+        }
+
+        .modal-overlay.is-open {
+          opacity: 1;
+          visibility: visible;
+        }
+
+        .modal-content {
+          background: #fff;
+          padding: 32px 24px;
+          border-radius: 20px;
+          position: relative;
+          width: 100%;
+          max-width: 400px;
+          text-align: center;
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+          transform: translateY(20px);
+          transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.is-open .modal-content {
+          transform: translateY(0);
+        }
+
+        .close-button {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: none;
+          border: none;
+          font-size: 28px;
+          cursor: pointer;
+          color: #aaa;
+        }
+
+        .alert-icon {
+          font-size: 40px;
+          margin-bottom: 12px;
+          display: block;
+        }
+
+        .modal-title {
+          color: #444;
+          font-size: 1.15rem;
+          margin: 0 0 20px 0;
+        }
+
+        .target-info-card {
+          background: #fdf2f2;
+          padding: 20px;
+          border-radius: 12px;
+          margin-bottom: 24px;
+          border: 1px solid #fee2e2;
+          text-align: left;
+        }
+
+        .info-row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+
+        .info-row:last-child {
+          margin-bottom: 0;
+        }
+
+        .info-label {
+          font-size: 0.8rem;
+          color: #8a8a8a;
+        }
+
+        .info-value {
+          font-size: 1rem;
+          font-weight: bold;
+          color: #333;
+        }
+
+        .device-name {
+          color: #d68080;
+          font-size: 1.1rem;
+        }
+
+        .confirm-message {
+          font-size: 0.95rem;
+          color: #333;
+          font-weight: bold;
+          margin-bottom: 8px;
+        }
+
+        .warning-text {
+          font-size: 0.75rem;
+          color: #999;
+          margin-bottom: 28px;
+        }
+
+        .modal-actions {
+          display: flex;
+          gap: 12px;
+        }
+
+        .modal-actions button {
+          flex: 1;
+          padding: 12px;
+          border-radius: 50px;
+          font-weight: bold;
+          font-size: 0.9rem;
+          cursor: pointer;
+          border: none;
+          transition: opacity 0.2s;
+        }
+
+        .btn-cancel { background: #f0f0f0; color: #666; }
+        .btn-delete { background: #d68080; color: white; }
+
+        .modal-actions button:hover { opacity: 0.85; }
+
         @media (max-width: 768px) {
             .sidebar { width: 100%; height: auto; position: relative; }
             .main-content { margin-left: 0; }
             .form-grid { grid-template-columns: 1fr; }
             .form-footer { flex-direction: column; align-items: flex-end; }
+        }
+
+        @media (max-width: 480px) {
+          .modal-actions { flex-direction: column-reverse; }
+          .btn-cancel { background: transparent; }
         }
     </style>
 </head>
@@ -223,7 +360,18 @@
                         <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ device.color }};"></span></td>
                         <td>{{ device.user.name }}</td>
                         <td>{{ device.power_kw }} kW</td>
-                        <td><button type="button" class="btn-delete-row"><i class="fas fa-trash-alt"></i> 削除</button></td>
+                        <td>
+                            <button
+                                type="button"
+                                class="btn-delete-row"
+                                data-delete-url="{{ url_for('admin_device_delete', device_id=device.id) }}"
+                                data-device-name="{{ device.name }}"
+                                data-user-name="{{ device.user.name }}"
+                                onclick="openDeleteModal(this)"
+                            >
+                                <i class="fas fa-trash-alt"></i> 削除
+                            </button>
+                        </td>
                     </tr>
                     {% endfor %}
                     <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
@@ -238,6 +386,78 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="modal-overlay" id="deleteDeviceModal">
+            <div class="modal-content">
+                <button class="close-button" onclick="closeAllModals()">&times;</button>
+
+                <div class="modal-body">
+                    <span class="alert-icon">⚠️</span>
+                    <h2 class="modal-title">機器の削除</h2>
+
+                    <div class="target-info-card">
+                        <div class="info-row">
+                            <span class="info-label">機器名</span>
+                            <span class="info-value device-name" id="targetDeviceName">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">使用メンバー</span>
+                            <span class="info-value" id="targetUserName">-</span>
+                        </div>
+                    </div>
+
+                    <p class="confirm-message">上記の機器を削除しますか？</p>
+                    <p class="warning-text">※削除するとこれまでの統計データに影響が出る場合があります。</p>
+
+                    <div class="modal-actions">
+                        <button class="btn-cancel" type="button" onclick="closeAllModals()">キャンセル</button>
+                        <button class="btn-delete" id="execDeleteDevice" type="button">削除する</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form id="deleteDeviceForm" method="post" action="" style="display: none;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        </form>
     </main>
+
+    <script>
+        const modalOverlay = document.getElementById('deleteDeviceModal');
+        const targetDeviceName = document.getElementById('targetDeviceName');
+        const targetUserName = document.getElementById('targetUserName');
+        const deleteDeviceForm = document.getElementById('deleteDeviceForm');
+        const execDeleteDevice = document.getElementById('execDeleteDevice');
+
+        // モーダルを開く
+        function openModal(id) {
+            document.getElementById(id).classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // モーダルを閉じる
+        function closeAllModals() {
+            document.querySelectorAll('.modal-overlay').forEach((m) => m.classList.remove('is-open'));
+            document.body.style.overflow = '';
+        }
+
+        // 一覧行の削除ボタンで対象情報をセットして確認モーダルを開く
+        function openDeleteModal(button) {
+            deleteDeviceForm.action = button.dataset.deleteUrl;
+            targetDeviceName.textContent = button.dataset.deviceName;
+            targetUserName.textContent = button.dataset.userName;
+            openModal('deleteDeviceModal');
+        }
+
+        // 枠外クリックで閉じる
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) closeAllModals();
+        });
+
+        // 確認後に削除POSTを送信
+        execDeleteDevice.addEventListener('click', () => {
+            deleteDeviceForm.submit();
+        });
+    </script>
 </body>
 </html>

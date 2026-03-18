@@ -356,6 +356,42 @@ def admin_devices():
     return render_template("admin_devices.html", devices=devices, users=users, form_data=form_data)
 
 
+@app.route("/admin/devices/<int:device_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_device_delete(device_id):
+    """管理者が機器を削除する。"""
+    # ID指定で削除対象機器を取得し、存在しない場合は一覧へ戻す
+    target_device = db.session.get(Device, device_id)
+    if target_device is None:
+        flash("削除対象の機器が見つかりません。")
+        return redirect(url_for("admin_devices"))
+
+    # end_time が NULL の利用記録が1件でもあれば「運転中」と判定して削除不可
+    has_running_log = (
+        DeviceUsageLog.query
+        .filter(
+            DeviceUsageLog.device_id == target_device.id,
+            DeviceUsageLog.end_time.is_(None),
+        )
+        .first()
+        is not None
+    )
+    if has_running_log:
+        flash("運転中の機器は削除できません。")
+        return redirect(url_for("admin_devices"))
+
+    try:
+        db.session.delete(target_device)
+        db.session.commit()
+        flash("機器を削除しました。")
+    except IntegrityError:
+        db.session.rollback()
+        flash("関連データがあるため削除できません。")
+
+    return redirect(url_for("admin_devices"))
+
+
 @app.after_request
 def add_no_cache_headers(response):
     """ログイン済みレスポンスにキャッシュ抑止ヘッダーを付与する。"""
