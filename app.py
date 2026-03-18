@@ -5,6 +5,7 @@ from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
+from decimal import Decimal, InvalidOperation
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 import os
@@ -67,6 +68,18 @@ THEME_COLOR_MAP = {
     "color08": "#fffcf2",
     "color09": "#f2fff9",
     "color10": "#fff5f2",
+}
+
+# 機器管理画面の色丸値 -> devices.color に保存するカラーコード
+DEVICE_THEME_COLOR_MAP = {
+    "c1": "#ff9999",
+    "c2": "#ff99cc",
+    "c3": "#ffcc99",
+    "c4": "#87ceeb",
+    "c5": "#3377ff",
+    "c6": "#adc2ff",
+    "c7": "#b380ff",
+    "c8": "#c0c0c0",
 }
 
 
@@ -261,20 +274,80 @@ def admin_user_delete(user_id):
     return redirect(url_for("admin_users"))
 
 
-@app.route("/admin/devices")
+@app.route("/admin/devices", methods=["GET", "POST"])
 @login_required
 @admin_required
 def admin_devices():
-    """管理者用の機器一覧画面を表示する。"""
+    """管理者用の機器一覧表示と新規登録を行う。"""
+    # 新規登録フォームの初期値
+    form_data = {
+        "name": "",
+        "user_id": "",
+        "power_kw": "",
+        "theme_color": "c1",
+    }
+
+    # 使用メンバー選択肢は users テーブルの既存ユーザーを表示
+    users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
+
+    if request.method == "POST":
+        # フォーム入力値を取得（エラー時の再表示にも使う）
+        form_data["name"] = request.form.get("name", "").strip()
+        form_data["user_id"] = request.form.get("user_id", "").strip()
+        form_data["power_kw"] = request.form.get("power_kw", "").strip()
+        form_data["theme_color"] = request.form.get("theme_color", "").strip()
+
+        # 必須入力チェック
+        if (
+            not form_data["name"]
+            or not form_data["user_id"]
+            or not form_data["power_kw"]
+            or not form_data["theme_color"]
+        ):
+            flash("すべての項目を入力してください。")
+        # 色丸で選択できる値だけを受け付ける
+        elif form_data["theme_color"] not in DEVICE_THEME_COLOR_MAP:
+            flash("テーマカラーの選択が不正です。")
+        else:
+            # user_id は数値で受け取り、users に存在するIDかを確認
+            try:
+                user_id = int(form_data["user_id"])
+            except ValueError:
+                user_id = None
+
+            target_user = db.session.get(User, user_id) if user_id is not None else None
+            if target_user is None:
+                flash("使用メンバーの選択が不正です。")
+            else:
+                # power_kw は数値として扱い、負数や文字列を除外する
+                try:
+                    power_kw = Decimal(form_data["power_kw"])
+                except InvalidOperation:
+                    power_kw = None
+
+                if power_kw is None or power_kw <= 0:
+                    flash("消費電力は0より大きい数値で入力してください。")
+                else:
+                    # 色丸UIの選択値をカラーコードに変換して保存
+                    new_device = Device(
+                        name=form_data["name"],
+                        user_id=target_user.id,
+                        power_kw=power_kw,
+                        color=DEVICE_THEME_COLOR_MAP[form_data["theme_color"]],
+                    )
+                    db.session.add(new_device)
+                    db.session.commit()
+                    flash("新しい機器を登録しました。")
+                    return redirect(url_for("admin_devices"))
+
     # 一覧表示で使用メンバー名も同時に参照するため、関連ユーザーをまとめて取得
     devices = (
         Device.query
-        # device.user.name を一覧で使用するため、関連ユーザーをまとめて取得（N+1問題を防ぐ）
         .options(joinedload(Device.user))
         .order_by(Device.id.asc())
         .all()
     )
-    return render_template("admin_devices.html", devices=devices)
+    return render_template("admin_devices.html", devices=devices, users=users, form_data=form_data)
 
 
 @app.after_request
