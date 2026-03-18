@@ -247,6 +247,17 @@ def admin_user_delete(user_id):
         flash("ログイン中のユーザー自身は削除できません。")
         return redirect(url_for("admin_users"))
 
+    # 所有機器が1台でもある場合は削除不可
+    has_owned_device = (
+        Device.query
+        .filter(Device.user_id == target_user.id)
+        .first()
+        is not None
+    )
+    if has_owned_device:
+        flash("登録済み機器があるメンバーは削除できません。")
+        return redirect(url_for("admin_users"))
+
     # 一般ユーザーは運転中(end_time が NULL)の機器記録がある場合は削除不可
     if target_user.role == "user":
         has_running_device = (
