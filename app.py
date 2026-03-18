@@ -5,7 +5,9 @@ from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
+from decimal import Decimal, InvalidOperation
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 import os
 
 from models import db, Device, DeviceUsageLog, User
@@ -66,6 +68,18 @@ THEME_COLOR_MAP = {
     "color08": "#fffcf2",
     "color09": "#f2fff9",
     "color10": "#fff5f2",
+}
+
+# 機器管理画面の色丸値 -> devices.color に保存するカラーコード
+DEVICE_THEME_COLOR_MAP = {
+    "c1": "#ff9999",
+    "c2": "#ff99cc",
+    "c3": "#ffcc99",
+    "c4": "#87ceeb",
+    "c5": "#3377ff",
+    "c6": "#adc2ff",
+    "c7": "#b380ff",
+    "c8": "#c0c0c0",
 }
 
 
@@ -178,8 +192,8 @@ def admin_users():
         form_data["name"] = request.form.get("name", "").strip()
         form_data["login_id"] = request.form.get("login_id", "").strip()
         password = request.form.get("password", "")
-        form_data["role"] = request.form.get("role", "").strip()
-        form_data["theme_color"] = request.form.get("theme_color", "").strip()
+        form_data["role"] = request.form.get("role")
+        form_data["theme_color"] = request.form.get("theme_color")
 
         # 必須項目の空欄チェック
         if (
@@ -258,6 +272,128 @@ def admin_user_delete(user_id):
         flash("関連データがあるため削除できません。")
 
     return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/devices", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_devices():
+    """管理者用の機器一覧表示と新規登録を行う。"""
+    # 新規登録フォームの初期値
+    form_data = {
+        "name": "",
+        "user_id": "",
+        "power_kw": "",
+        "theme_color": "c1",
+    }
+
+    # 使用メンバー選択肢は一般ユーザー(role='user')のみ表示
+    users = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+
+    if request.method == "POST":
+        # フォーム入力値を取得（エラー時の再表示にも使う）
+        form_data["name"] = request.form.get("name", "").strip()
+        form_data["user_id"] = request.form.get("user_id")
+        form_data["power_kw"] = request.form.get("power_kw", "").strip()
+        form_data["theme_color"] = request.form.get("theme_color")
+
+        # 必須入力チェック
+        if (
+            not form_data["name"]
+            or not form_data["user_id"]
+            or not form_data["power_kw"]
+            or not form_data["theme_color"]
+        ):
+            flash("すべての項目を入力してください。")
+        # 色丸で選択できる値だけを受け付ける
+        elif form_data["theme_color"] not in DEVICE_THEME_COLOR_MAP:
+            flash("テーマカラーの選択が不正です。")
+        else:
+            # user_id は数値で受け取り、users に存在するIDかを確認
+            try:
+                user_id = int(form_data["user_id"])
+            except ValueError:
+                user_id = None
+
+            target_user = db.session.get(User, user_id) if user_id is not None else None
+            # 存在し、かつ一般ユーザー(role='user')のみ登録を許可
+            if target_user is None or target_user.role != "user":
+                flash("使用メンバーの選択が不正です。")
+            else:
+                # power_kw は数値として扱い、負数や文字列を除外する
+                try:
+                    power_kw = Decimal(form_data["power_kw"])
+                except InvalidOperation:
+                    power_kw = None
+
+                if power_kw is None or power_kw <= 0:
+                    flash("消費電力は0より大きい数値で入力してください。")
+                else:
+                    # 色丸UIの選択値をカラーコードに変換して保存
+                    new_device = Device(
+                        name=form_data["name"],
+                        user_id=target_user.id,
+                        power_kw=power_kw,
+                        color=DEVICE_THEME_COLOR_MAP[form_data["theme_color"]],
+                    )
+                    db.session.add(new_device)
+                    db.session.commit()
+                    flash("新しい機器を登録しました。")
+                    return redirect(url_for("admin_devices"))
+
+    # 一覧表示で使用メンバー名も同時に参照するため、関連ユーザーをまとめて取得
+    devices = (
+        Device.query
+        .options(joinedload(Device.user))
+        .order_by(Device.id.asc())
+        .all()
+    )
+    return render_template("admin_devices.html", devices=devices, users=users, form_data=form_data)
+
+
+@app.route("/admin/devices/<int:device_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_device_delete(device_id):
+    """管理者が機器を削除する。"""
+    # ID指定で削除対象機器を取得し、存在しない場合は一覧へ戻す
+    target_device = db.session.get(Device, device_id)
+    if target_device is None:
+        flash("削除対象の機器が見つかりません。")
+        return redirect(url_for("admin_devices"))
+
+    # end_time が NULL の利用記録が1件でもあれば「運転中」と判定して削除不可
+    has_running_log = (
+        DeviceUsageLog.query
+        .filter(
+            DeviceUsageLog.device_id == target_device.id,
+            DeviceUsageLog.end_time.is_(None),
+        )
+        .first()
+        is not None
+    )
+    if has_running_log:
+        flash("運転中の機器は削除できません。")
+        return redirect(url_for("admin_devices"))
+
+    try:
+        # 運転中チェック済みのため、FK制約エラー回避として紐づく過去ログを先に削除する
+        DeviceUsageLog.query.filter(
+            DeviceUsageLog.device_id == target_device.id
+        ).delete(synchronize_session=False)
+        db.session.delete(target_device)
+        db.session.commit()
+        flash("機器を削除しました。")
+    except IntegrityError:
+        db.session.rollback()
+        flash("関連データがあるため削除できません。")
+
+    return redirect(url_for("admin_devices"))
 
 
 @app.after_request
