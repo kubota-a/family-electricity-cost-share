@@ -382,6 +382,10 @@ def admin_device_delete(device_id):
         return redirect(url_for("admin_devices"))
 
     try:
+        # 運転中チェック済みのため、FK制約エラー回避として紐づく過去ログを先に削除する
+        DeviceUsageLog.query.filter(
+            DeviceUsageLog.device_id == target_device.id
+        ).delete(synchronize_session=False)
         db.session.delete(target_device)
         db.session.commit()
         flash("機器を削除しました。")
