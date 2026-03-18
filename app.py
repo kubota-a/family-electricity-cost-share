@@ -5,6 +5,7 @@ from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
+from sqlalchemy.exc import IntegrityError
 import os
 
 from models import db, User
@@ -214,6 +215,33 @@ def admin_users():
     # ユーザー管理画面で表示する一覧を取得（古い登録順）
     users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
     return render_template("admin_users.html", users=users, form_data=form_data)
+
+
+@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_user_delete(user_id):
+    """管理者がユーザーを削除する。"""
+    # 削除対象を取得し、存在しない場合は一覧へ戻す
+    target_user = db.session.get(User, user_id)
+    if target_user is None:
+        flash("削除対象のシェアメンバーが見つかりません。")
+        return redirect(url_for("admin_users"))
+
+    # ログイン中のユーザー自身は削除不可（安全のため）
+    if target_user.id == current_user.id:
+        flash("ログイン中のユーザー自身は削除できません。")
+        return redirect(url_for("admin_users"))
+
+    try:
+        db.session.delete(target_user)
+        db.session.commit()
+        flash("シェアメンバーを削除しました。")
+    except IntegrityError:
+        db.session.rollback()
+        flash("関連データがあるため削除できません。")
+
+    return redirect(url_for("admin_users"))
 
 
 @app.after_request
