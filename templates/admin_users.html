@@ -64,6 +64,8 @@
         .color-dot input { position: absolute; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
         .color-dot input:checked + .check-mark { display: block; }
         .check-mark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #884444; font-size: 12px; display: none; pointer-events: none; }
+        .role-options { display: flex; gap: 20px; }
+        .role-options label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: #666; font-weight: 500; }
 
         .form-footer { display: flex; justify-content: flex-end; align-items: center; gap: 20px; }
         .inline-flash { color: #2e7d32; font-size: 0.9rem; font-weight: 500; }
@@ -73,10 +75,18 @@
         /* --- 登録済みリスト（テーブル：HOME画面の操作感に統一） --- */
         .section-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 15px; color: #666; }
         .table-container { background: #fff; border-radius: 12px; border: 1px solid var(--border-color); overflow-y: auto; max-height: 500px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed; }
         th { position: sticky; top: 0; background: #fff5f5; z-index: 10; padding: 15px; text-align: left; color: #884444; border-bottom: 2px solid var(--border-color); }
         td { padding: 15px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
         tbody tr:hover { background-color: var(--hover-row-color); }
+        th:nth-child(1), td:nth-child(1) { width: 18%; }
+        th:nth-child(2), td:nth-child(2) { width: 20%; }
+        th:nth-child(3), td:nth-child(3) { width: 14%; }
+        th:nth-child(4), td:nth-child(4) { width: 14%; }
+        th:nth-child(5), td:nth-child(5) { width: 18%; }
+        th:nth-child(6), td:nth-child(6) { width: 16%; }
+        .theme-color-cell { text-align: center; }
+        .theme-color-dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #ddd; display: inline-block; vertical-align: middle; }
 
         .btn-delete-row { background: none; border: none; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; }
         .btn-delete-row:hover { color: #d32f2f; }
@@ -116,19 +126,35 @@
         <div class="card">
             <div class="form-header">新規登録</div>
 
-            <form>
+            <form action="{{ url_for('admin_users') }}" method="post" autocomplete="off">
+                {# CSRF対策トークン（POST送信時に必須） #}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-grid">
                     <div class="form-group">
                         <label>表示名</label>
-                        <input type="text" placeholder="例：花子">
+                        <input type="text" name="name" value="{{ form_data.name }}" placeholder="例：花子">
                     </div>
                     <div class="form-group">
                         <label>ID</label>
-                        <input type="text" placeholder="例：hanako01">
+                        <input type="text" name="login_id" value="{{ form_data.login_id }}" placeholder="例：hanako01" autocomplete="off">
                     </div>
                     <div class="form-group">
                         <label>パスワード</label>
-                        <input type="password" placeholder="••••••••">
+                        <input type="password" name="password" autocomplete="new-password">
+                    </div>
+                </div>
+
+                <div class="color-select-group">
+                    <label>役割</label>
+                    <div class="role-options">
+                        <label>
+                            <input type="radio" name="role" value="user" {% if form_data.role == "user" %}checked{% endif %}>
+                            メンバー
+                        </label>
+                        <label>
+                            <input type="radio" name="role" value="admin" {% if form_data.role == "admin" %}checked{% endif %}>
+                            管理者
+                        </label>
                     </div>
                 </div>
 
@@ -136,43 +162,43 @@
                     <label>テーマカラー選択</label>
                     <div class="color-options">
                         <label class="color-dot" style="background-color: var(--color-hanako);">
-                            <input type="radio" name="theme-color" value="hanako" checked>
+                            <input type="radio" name="theme_color" value="color01" {% if form_data.theme_color == "color01" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-taro);">
-                            <input type="radio" name="theme-color" value="taro">
+                            <input type="radio" name="theme_color" value="color02" {% if form_data.theme_color == "color02" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-ichiro);">
-                            <input type="radio" name="theme-color" value="ichiro">
+                            <input type="radio" name="theme_color" value="color03" {% if form_data.theme_color == "color03" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-ryoko);">
-                            <input type="radio" name="theme-color" value="ryoko">
+                            <input type="radio" name="theme_color" value="color04" {% if form_data.theme_color == "color04" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-naoki);">
-                            <input type="radio" name="theme-color" value="naoki">
+                            <input type="radio" name="theme_color" value="color05" {% if form_data.theme_color == "color05" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-megumi);">
-                            <input type="radio" name="theme-color" value="megumi">
+                            <input type="radio" name="theme_color" value="color06" {% if form_data.theme_color == "color06" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-kenta);">
-                            <input type="radio" name="theme-color" value="kenta">
+                            <input type="radio" name="theme_color" value="color07" {% if form_data.theme_color == "color07" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-misaki);">
-                            <input type="radio" name="theme-color" value="misaki">
+                            <input type="radio" name="theme_color" value="color08" {% if form_data.theme_color == "color08" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-shuhei);">
-                            <input type="radio" name="theme-color" value="shuhei">
+                            <input type="radio" name="theme_color" value="color09" {% if form_data.theme_color == "color09" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                         <label class="color-dot" style="background-color: var(--color-ai);">
-                            <input type="radio" name="theme-color" value="ai">
+                            <input type="radio" name="theme_color" value="color10" {% if form_data.theme_color == "color10" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
                     </div>
@@ -180,7 +206,12 @@
 
                 <div class="form-footer">
                     <div class="inline-flash">
-                        <i class="fas fa-check-circle"></i> ここに各flashメッセージを表示
+                        {% set messages = get_flashed_messages() %}
+                        {% if messages %}
+                            <i class="fas fa-check-circle"></i> {{ messages[0] }}
+                        {% else %}
+                            <i class="fas fa-check-circle"></i> ここに各flashメッセージを表示
+                        {% endif %}
                     </div>
                     <button type="submit" class="btn-primary">登録する</button>
                 </div>
@@ -195,8 +226,9 @@
                         <th>ID</th>
                         <th>表示名</th>
                         <th>役割</th>
+                        <th>テーマカラー</th>
                         <th>登録日</th>
-                        <th></th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -206,15 +238,16 @@
                         <td>{{ user.login_id }}</td>
                         <td>{{ user.name }}</td>
                         <td>{{ "管理者" if user.role == "admin" else "メンバー" }}</td>
+                        <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ user.color }};"></span></td>
                         <td>{{ user.created_at.strftime('%Y/%m/%d') if user.created_at else "" }}</td>
                         <td><button type="button" class="btn-delete-row"><i class="fas fa-trash-alt"></i> 削除</button></td>
                     </tr>
                     {% endfor %}
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
                 </tbody>
             </table>
         </div>
