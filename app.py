@@ -3,7 +3,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 import os
 
@@ -47,9 +47,25 @@ login_manager.init_app(app)
 
 # 未ログイン時のリダイレクト先
 login_manager.login_view = "login"
+# 未ログインで保護ページへアクセスした際のメッセージを日本語化
+login_manager.login_message = "ログインしてください"
 
 # ログイン失敗時は、入力ミス内容に関係なく同一メッセージを返す
 INVALID_LOGIN_MESSAGE = "ログインIDまたはパスワードが違います"
+
+# ユーザー管理画面の色丸値 -> users.color に保存するカラーコード
+THEME_COLOR_MAP = {
+    "color01": "#fff0f3",
+    "color02": "#f0f4ff",
+    "color03": "#f1fcf0",
+    "color04": "#fff9f0",
+    "color05": "#f2f2f2",
+    "color06": "#fdf2ff",
+    "color07": "#f2fbff",
+    "color08": "#fffcf2",
+    "color09": "#f2fff9",
+    "color10": "#fff5f2",
+}
 
 
 @login_manager.user_loader
@@ -79,7 +95,6 @@ def admin_required(view_func):
     def wrapped_view(*args, **kwargs):
         # 権限不足時は安全に自分のトップへ戻す
         if current_user.role != "admin":
-            flash("このページには管理者のみアクセスできます。")
             return redirect_by_role(current_user)
         return view_func(*args, **kwargs)
 
@@ -131,6 +146,9 @@ def logout():
 @login_required
 def user_top():
     """ユーザー用トップ画面を表示する。"""
+    # admin が user 画面へ来た場合は、自分のトップへ戻す（flashなし）
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
     return render_template("user_top.html")
 
 
@@ -140,3 +158,69 @@ def user_top():
 def admin_top():
     """管理者用トップ画面を表示する。"""
     return render_template("admin_top.html")
+
+
+@app.route("/admin/users", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_users():
+    """管理者用のユーザー一覧表示と新規登録を行う。"""
+    form_data = {
+        "name": "",
+        "login_id": "",
+        "role": "user",
+        "theme_color": "color01",
+    }
+
+    if request.method == "POST":
+        # 新規登録フォームの入力値を取得
+        form_data["name"] = request.form.get("name", "").strip()
+        form_data["login_id"] = request.form.get("login_id", "").strip()
+        password = request.form.get("password", "")
+        form_data["role"] = request.form.get("role", "").strip()
+        form_data["theme_color"] = request.form.get("theme_color", "").strip()
+
+        # 必須項目の空欄チェック
+        if (
+            not form_data["name"]
+            or not form_data["login_id"]
+            or not password
+            or not form_data["role"]
+            or not form_data["theme_color"]
+        ):
+            flash("すべての項目を入力してください。")
+        # role は user/admin のみ許可
+        elif form_data["role"] not in {"user", "admin"}:
+            flash("役割はメンバーまたは管理者を選択してください。")
+        # 色丸で選んだ値だけを受け付ける
+        elif form_data["theme_color"] not in THEME_COLOR_MAP:
+            flash("テーマカラーの選択が不正です。")
+        elif User.query.filter_by(login_id=form_data["login_id"]).first() is not None:
+            flash("そのIDはすでに使用されています。")
+        else:
+            # パスワードは平文保存せず、必ずハッシュ化して保存
+            new_user = User(
+                login_id=form_data["login_id"],
+                password_hash=generate_password_hash(password),
+                name=form_data["name"],
+                role=form_data["role"],
+                color=THEME_COLOR_MAP[form_data["theme_color"]],
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            flash("新しいシェアメンバーを登録しました。")
+            return redirect(url_for("admin_users"))
+
+    # ユーザー管理画面で表示する一覧を取得（古い登録順）
+    users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
+    return render_template("admin_users.html", users=users, form_data=form_data)
+
+
+@app.after_request
+def add_no_cache_headers(response):
+    """ログイン済みレスポンスにキャッシュ抑止ヘッダーを付与する。"""
+    if current_user.is_authenticated:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
