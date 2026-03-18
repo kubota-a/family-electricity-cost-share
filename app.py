@@ -8,7 +8,7 @@ from functools import wraps
 from sqlalchemy.exc import IntegrityError
 import os
 
-from models import db, User
+from models import db, Device, DeviceUsageLog, User
 
 
 # .env から環境変数を読み込む
@@ -222,7 +222,7 @@ def admin_users():
 @admin_required
 def admin_user_delete(user_id):
     """管理者がユーザーを削除する。"""
-    # 削除対象を取得し、存在しない場合は一覧へ戻す
+    # ID指定で削除対象ユーザーを取得し、存在しない場合は一覧へ戻す
     target_user = db.session.get(User, user_id)
     if target_user is None:
         flash("削除対象のシェアメンバーが見つかりません。")
@@ -232,6 +232,22 @@ def admin_user_delete(user_id):
     if target_user.id == current_user.id:
         flash("ログイン中のユーザー自身は削除できません。")
         return redirect(url_for("admin_users"))
+
+    # 一般ユーザーは運転中(end_time が NULL)の機器記録がある場合は削除不可
+    if target_user.role == "user":
+        has_running_device = (
+            DeviceUsageLog.query
+            .join(Device, DeviceUsageLog.device_id == Device.id)
+            .filter(
+                Device.user_id == target_user.id,
+                DeviceUsageLog.end_time.is_(None),
+            )
+            .first()
+            is not None
+        )
+        if has_running_device:
+            flash("運転中の機器があるメンバーは削除できません。")
+            return redirect(url_for("admin_users"))
 
     try:
         db.session.delete(target_user)
