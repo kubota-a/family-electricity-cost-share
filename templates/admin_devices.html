@@ -72,10 +72,17 @@
         /* --- 登録済みリスト --- */
         .section-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 15px; color: #666; }
         .table-container { background: #fff; border-radius: 12px; border: 1px solid var(--border-color); overflow-y: auto; max-height: 450px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed; }
         th { position: sticky; top: 0; background: #fff5f5; z-index: 10; padding: 15px; text-align: left; color: #884444; border-bottom: 2px solid var(--border-color); }
         td { padding: 15px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
         tbody tr:hover { background-color: var(--hover-row-color); }
+        th:nth-child(1), td:nth-child(1) { width: 20%; }
+        th:nth-child(2), td:nth-child(2) { width: 20%; text-align: center; }
+        th:nth-child(3), td:nth-child(3) { width: 20%; }
+        th:nth-child(4), td:nth-child(4) { width: 20%; }
+        th:nth-child(5), td:nth-child(5) { width: 20%; }
+        .theme-color-cell { text-align: center; }
+        .theme-color-dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #ddd; display: inline-block; vertical-align: middle; }
 
         .btn-delete-row { background: none; border: none; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; }
         .btn-delete-row:hover { color: #d32f2f; }
@@ -202,6 +209,7 @@
                 <thead>
                     <tr>
                         <th>機器名</th>
+                        <th>テーマカラー</th>
                         <th>使用メンバー</th>
                         <th>消費電力</th>
                         <th>操作</th>
@@ -212,20 +220,21 @@
                     {% for device in devices %}
                     <tr>
                         <td>{{ device.name }}</td>
+                        <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ device.color }};"></span></td>
                         <td>{{ device.user.name }}</td>
                         <td>{{ device.power_kw }} kW</td>
                         <td><button type="button" class="btn-delete-row"><i class="fas fa-trash-alt"></i> 削除</button></td>
                     </tr>
                     {% endfor %}
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
                 </tbody>
             </table>
         </div>
