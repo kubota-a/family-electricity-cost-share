@@ -92,11 +92,182 @@
         .btn-delete-row:hover { color: #d32f2f; }
         .empty-row { height: 51px; } /* TDのpadding等に合わせた高さ */
 
+        /* --- 削除確認モーダル --- */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.4);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          opacity: 0;
+          visibility: hidden;
+          transition: all 0.3s ease;
+          z-index: 1000;
+          padding: 20px;
+          box-sizing: border-box;
+        }
+
+        .modal-overlay.is-open {
+          opacity: 1;
+          visibility: visible;
+        }
+
+        .modal-content {
+          background: #fff;
+          padding: 32px 24px;
+          border-radius: 20px;
+          position: relative;
+          width: 100%;
+          max-width: 400px;
+          max-height: 90vh;
+          overflow-y: auto;
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+          transform: translateY(20px);
+          transition: transform 0.3s ease;
+          text-align: center;
+        }
+
+        .modal-overlay.is-open .modal-content {
+          transform: translateY(0);
+        }
+
+        .close-button {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: none;
+          border: none;
+          font-size: 28px;
+          line-height: 1;
+          cursor: pointer;
+          color: #aaa;
+          padding: 5px;
+          transition: color 0.2s;
+        }
+        .close-button:hover {
+          color: #666;
+        }
+
+        .alert-icon {
+          font-size: 40px;
+          margin-bottom: 12px;
+          display: block;
+        }
+
+        .modal-title {
+          color: #444;
+          font-size: 1.15rem;
+          margin: 0 0 20px 0;
+          font-weight: bold;
+        }
+
+        .target-info {
+          background: #fdf2f2;
+          padding: 18px;
+          border-radius: 12px;
+          margin-bottom: 24px;
+          border: 1px solid #fee2e2;
+        }
+
+        .target-label {
+          font-size: 0.8rem;
+          color: #8a8a8a;
+          margin-bottom: 4px;
+          display: block;
+        }
+
+        .target-name {
+          font-size: 1.25rem;
+          font-weight: bold;
+          color: #d68080;
+          margin: 0;
+        }
+
+        .target-id {
+          font-weight: normal;
+          font-size: 0.9rem;
+          color: #a0a0a0;
+          margin-left: 4px;
+        }
+
+        .confirm-message {
+          font-size: 0.95rem;
+          color: #333;
+          font-weight: bold;
+          margin-bottom: 8px;
+        }
+
+        .warning-text {
+          font-size: 0.75rem;
+          color: #999;
+          margin-bottom: 28px;
+        }
+
+        .modal-actions {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        }
+
+        .modal-actions button {
+          flex: 1;
+          padding: 12px 20px;
+          border-radius: 50px;
+          font-weight: bold;
+          font-size: 0.9rem;
+          cursor: pointer;
+          border: none;
+          transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .btn-cancel {
+          background: #f0f0f0;
+          color: #666;
+        }
+
+        .btn-delete {
+          background: #d68080;
+          color: white;
+        }
+
+        .modal-actions form {
+          flex: 1;
+          display: flex;
+        }
+        .modal-actions form .btn-delete {
+          width: 100%;
+        }
+
+        .modal-actions button:active {
+          transform: scale(0.98);
+        }
+
+        .modal-actions button:hover {
+          opacity: 0.85;
+        }
+
         @media (max-width: 768px) {
             .sidebar { width: 100%; height: auto; position: relative; }
             .main-content { margin-left: 0; }
             .form-grid { grid-template-columns: 1fr; }
             .form-footer { flex-direction: column; align-items: flex-end; }
+        }
+
+        @media (max-width: 480px) {
+          .modal-content {
+            padding: 30px 20px;
+            width: 90%;
+          }
+          .modal-actions {
+            flex-direction: column-reverse;
+          }
+          .btn-cancel {
+            background: transparent;
+          }
         }
     </style>
 </head>
@@ -240,7 +411,18 @@
                         <td>{{ "管理者" if user.role == "admin" else "メンバー" }}</td>
                         <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ user.color }};"></span></td>
                         <td>{{ user.created_at.strftime('%Y/%m/%d') if user.created_at else "" }}</td>
-                        <td><button type="button" class="btn-delete-row"><i class="fas fa-trash-alt"></i> 削除</button></td>
+                        <td>
+                            <button
+                                type="button"
+                                class="btn-delete-row"
+                                data-delete-url="{{ url_for('admin_user_delete', user_id=user.id) }}"
+                                data-user-name="{{ user.name }}"
+                                data-login-id="{{ user.login_id }}"
+                                onclick="openDeleteModal(this)"
+                            >
+                                <i class="fas fa-trash-alt"></i> 削除
+                            </button>
+                        </td>
                     </tr>
                     {% endfor %}
                     <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
@@ -251,6 +433,76 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="modal-overlay" id="deleteModal">
+            <div class="modal-content">
+                <button class="close-button" id="closeBtn" aria-label="閉じる">&times;</button>
+
+                <div class="modal-body">
+                    <span class="alert-icon">⚠️</span>
+                    <h2 class="modal-title">メンバーの削除</h2>
+
+                    <div class="target-info">
+                        <span class="target-label">削除対象のシェアメンバー</span>
+                        <p class="target-name"><span id="targetUserName">-</span> <span class="target-id" id="targetLoginId">(-)</span></p>
+                    </div>
+
+                    <p class="confirm-message">上記のシェアメンバーを削除しますか？</p>
+                    <p class="warning-text">※この操作は取り消せません。</p>
+
+                    <div class="modal-actions">
+                        <button class="btn-cancel" id="cancelBtn" type="button">キャンセル</button>
+                        <form id="deleteForm" method="post" action="">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn-delete" id="execDeleteBtn" type="submit">削除する</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
+
+    <script>
+        const modal = document.getElementById('deleteModal');
+        const closeBtn = document.getElementById('closeBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const overlay = document.getElementById('deleteModal');
+        const deleteForm = document.getElementById('deleteForm');
+        const targetUserName = document.getElementById('targetUserName');
+        const targetLoginId = document.getElementById('targetLoginId');
+
+        // モーダルを開く関数
+        function openModal(id) {
+            document.getElementById(id).classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 削除ボタンから対象情報を反映してモーダルを開く
+        function openDeleteModal(button) {
+            deleteForm.action = button.dataset.deleteUrl;
+            targetUserName.textContent = button.dataset.userName;
+            targetLoginId.textContent = `(${button.dataset.loginId})`;
+            openModal('deleteModal');
+        }
+
+        // 全てのモーダルを閉じる関数
+        function closeAllModals() {
+            modal.classList.remove('is-open');
+            document.body.style.overflow = '';
+        }
+
+        // イベントリスナー：×ボタン
+        closeBtn.addEventListener('click', closeAllModals);
+
+        // イベントリスナー：キャンセルボタン
+        cancelBtn.addEventListener('click', closeAllModals);
+
+        // イベントリスナー：枠外クリック
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeAllModals();
+            }
+        });
+    </script>
 </body>
 </html>
