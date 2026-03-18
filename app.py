@@ -192,8 +192,8 @@ def admin_users():
         form_data["name"] = request.form.get("name", "").strip()
         form_data["login_id"] = request.form.get("login_id", "").strip()
         password = request.form.get("password", "")
-        form_data["role"] = request.form.get("role", "").strip()
-        form_data["theme_color"] = request.form.get("theme_color", "").strip()
+        form_data["role"] = request.form.get("role")
+        form_data["theme_color"] = request.form.get("theme_color")
 
         # 必須項目の空欄チェック
         if (
@@ -287,15 +287,20 @@ def admin_devices():
         "theme_color": "c1",
     }
 
-    # 使用メンバー選択肢は users テーブルの既存ユーザーを表示
-    users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
+    # 使用メンバー選択肢は一般ユーザー(role='user')のみ表示
+    users = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
 
     if request.method == "POST":
         # フォーム入力値を取得（エラー時の再表示にも使う）
         form_data["name"] = request.form.get("name", "").strip()
-        form_data["user_id"] = request.form.get("user_id", "").strip()
+        form_data["user_id"] = request.form.get("user_id")
         form_data["power_kw"] = request.form.get("power_kw", "").strip()
-        form_data["theme_color"] = request.form.get("theme_color", "").strip()
+        form_data["theme_color"] = request.form.get("theme_color")
 
         # 必須入力チェック
         if (
@@ -316,7 +321,8 @@ def admin_devices():
                 user_id = None
 
             target_user = db.session.get(User, user_id) if user_id is not None else None
-            if target_user is None:
+            # 存在し、かつ一般ユーザー(role='user')のみ登録を許可
+            if target_user is None or target_user.role != "user":
                 flash("使用メンバーの選択が不正です。")
             else:
                 # power_kw は数値として扱い、負数や文字列を除外する
