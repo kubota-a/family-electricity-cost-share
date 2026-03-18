@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア 管理者パネル - 機器管理</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* --- 共通変数 --- */
+        :root {
+            --primary-color: #d88c8c;
+            --bg-color: #fdf8f8;
+            --sidebar-bg: #ffffff;
+            --text-main: #333;
+            --border-color: #eee;
+            --hover-row-color: #f1f7fc;
+
+            /* 添付画像に基づいた8色 */
+            --c-1: #ff9999; /* ピンク */
+            --c-2: #ff99cc; /* ライトピンク */
+            --c-3: #ffcc99; /* オレンジ */
+            --c-4: #87ceeb; /* 水色 */
+            --c-5: #3377ff; /* 青 */
+            --c-6: #adc2ff; /* 薄青 */
+            --c-7: #b380ff; /* 紫 */
+            --c-8: #c0c0c0; /* グレー */
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif; background-color: var(--bg-color); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* --- サイドバー --- */
+        .sidebar { width: 240px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; position: fixed; height: 100vh; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; }
+        .sidebar-header i { color: var(--primary-color); font-size: 1.2rem; }
+        .sidebar-header h1 { font-size: 1rem; line-height: 1.2; }
+        .nav-menu { flex-grow: 1; padding: 20px 0; }
+        .nav-item { padding: 12px 25px; cursor: pointer; display: block; text-decoration: none; color: var(--text-main); transition: 0.2s; font-weight: 500; }
+        .nav-item:hover { background: #fff5f5; color: var(--primary-color); }
+        .nav-item.active { border-left: 4px solid var(--primary-color); background: #fff5f5; color: var(--primary-color); }
+        .logout { padding: 20px 25px; border-top: 1px solid var(--border-color); color: #888; text-decoration: none; display: flex; align-items: center; gap: 8px; width: 100%; background: transparent; border-left: none; border-right: none; border-bottom: none; cursor: pointer; font: inherit; }
+
+        /* --- メインコンテンツ --- */
+        .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; max-width: 1200px; }
+
+        /* --- 新規登録フォーム --- */
+        .card { background: #fff; padding: 15px 25px 25px 25px; border-radius: 24px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 30px; }
+        .form-header { font-size: 1.2rem; font-weight: bold; margin-bottom: 15px; color: var(--text-main); padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+
+        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 15px; align-items: end; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { font-size: 0.9rem; font-weight: bold; color: #666; }
+        .form-group input, .form-group select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; width: 100%; }
+
+        .form-note { font-size: 0.85rem; color: #777; line-height: 1.5; margin-bottom: 20px; padding: 0 5px; }
+
+        .color-select-group { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+        .color-select-group label { font-size: 0.9rem; font-weight: bold; color: #666; }
+        .color-options { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        .color-dot { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #ddd; cursor: pointer; position: relative; transition: 0.2s; }
+        .color-dot:hover { transform: scale(1.1); }
+        .color-dot input { position: absolute; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+        .color-dot input:checked + .check-mark { display: block; }
+        .check-mark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 10px; display: none; pointer-events: none; }
+
+        .form-footer { display: flex; justify-content: flex-end; align-items: center; gap: 20px; }
+        .inline-flash { color: #2e7d32; font-size: 0.9rem; font-weight: 500; }
+        .btn-primary { background: var(--primary-color); color: #fff; border: none; padding: 10px 40px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-primary:hover { opacity: 0.8; }
+
+        /* --- 登録済みリスト --- */
+        .section-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 15px; color: #666; }
+        .table-container { background: #fff; border-radius: 12px; border: 1px solid var(--border-color); overflow-y: auto; max-height: 450px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { position: sticky; top: 0; background: #fff5f5; z-index: 10; padding: 15px; text-align: left; color: #884444; border-bottom: 2px solid var(--border-color); }
+        td { padding: 15px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        tbody tr:hover { background-color: var(--hover-row-color); }
+
+        .btn-delete-row { background: none; border: none; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; }
+        .btn-delete-row:hover { color: #d32f2f; }
+        .empty-row { height: 51px; }
+
+        @media (max-width: 768px) {
+            .sidebar { width: 100%; height: auto; position: relative; }
+            .main-content { margin-left: 0; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-footer { flex-direction: column; align-items: flex-end; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <i class="fas fa-home"></i>
+            <h1>いえ電シェア<br>管理者パネル</h1>
+        </div>
+        <nav class="nav-menu">
+            <a href="{{ url_for('admin_top') }}" class="nav-item">HOME</a>
+            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
+            <a href="{{ url_for('admin_devices') }}" class="nav-item active">機器</a>
+            <a href="#" class="nav-item">電気料金の確定</a>
+            <a href="#" class="nav-item">確定済の電気料金</a>
+        </nav>
+        <form action="{{ url_for('logout') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="logout">
+                <i class="fas fa-sign-out-alt"></i> ログアウト
+            </button>
+        </form>
+    </aside>
+
+    <main class="main-content">
+        <div class="card">
+            <div class="form-header">新規登録</div>
+
+            <form>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>機器名</label>
+                        <input type="text" placeholder="例：ドライヤー">
+                    </div>
+                    <div class="form-group">
+                        <label>機器を使うメンバー</label>
+                        <select>
+                            <option value="">選択してください</option>
+                            <option value="hanako">花子</option>
+                            <option value="taro">太郎</option>
+                            <option value="ichiro">一郎</option>
+                            <option value="ryoko">良子</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>消費電力（kW）</label>
+                        <input type="text" placeholder="例：1.2">
+                    </div>
+                </div>
+
+                <div class="form-note">
+                    消費電力は機器のラベルや説明書を参考に入力してください。<br>
+                    参考：　100 W = 0.1 kW
+                </div>
+
+                <div class="color-select-group">
+                    <label>テーマカラー選択</label>
+                    <div class="color-options">
+                        <label class="color-dot" style="background-color: var(--c-1);">
+                            <input type="radio" name="theme-color" value="c1" checked>
+                            <span class="check-mark"><i class="fas fa-check"></i></span>
+                        </label>
+                        <label class="color-dot" style="background-color: var(--c-2);">
+                            <input type="radio" name="theme-color" value="c2">
+                            <span class="check-mark"><i class="fas fa-check"></i></span>
+                        </label>
+                        <label class="color-dot" style="background-color: var(--c-3);">
+                            <input type="radio" name="theme-color" value="c3">
+                            <span class="check-mark"><i class="fas fa-check"></i></span>
+                        </label>
+                        <label class="color-dot" style="background-color: var(--c-4);">
+                            <input type="radio" name="theme-color" value="c4">
+                            <span class="check-mark"><i class="fas fa-check"></i></span>
+                        </label>
+                        <label class="color-dot" style="background-color: var(--c-5);">
+                            <input type="radio" name="theme-color" value="c5">
+                            <span class="check-mark"><i class="fas fa-check"></i></span>
+                        </label>
+                        <label class="color-dot" style="background-color: var(--c-6);">
+                            <input type="radio" name="theme-color" value="c6">
+                            <span class="check-mark"><i class="fas fa-check"></i></span>
+                        </label>
+                        <label class="color-dot" style="background-color: var(--c-7);">
+                            <input type="radio" name="theme-color" value="c7">
+                            <span class="check-mark"><i class="fas fa-check"></i></span>
+                        </label>
+                        <label class="color-dot" style="background-color: var(--c-8);">
+                            <input type="radio" name="theme-color" value="c8">
+                            <span class="check-mark"><i class="fas fa-check"></i></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-footer">
+                    <div class="inline-flash">
+                        <i class="fas fa-check-circle"></i> ここに各flashメッセージを表示
+                    </div>
+                    <button type="submit" class="btn-primary">登録する</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="section-title">登録済み機器</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>機器名</th>
+                        <th>使用メンバー</th>
+                        <th>消費電力</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {# 一覧は devices テーブルから表示する #}
+                    {% for device in devices %}
+                    <tr>
+                        <td>{{ device.name }}</td>
+                        <td>{{ device.user.name }}</td>
+                        <td>{{ device.power_kw }} kW</td>
+                        <td><button type="button" class="btn-delete-row"><i class="fas fa-trash-alt"></i> 削除</button></td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                    <tr class="empty-row"><td></td><td></td><td></td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</body>
+</html>

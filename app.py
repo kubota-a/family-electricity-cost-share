@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 import os
 
 from models import db, Device, DeviceUsageLog, User
@@ -258,6 +259,22 @@ def admin_user_delete(user_id):
         flash("関連データがあるため削除できません。")
 
     return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/devices")
+@login_required
+@admin_required
+def admin_devices():
+    """管理者用の機器一覧画面を表示する。"""
+    # 一覧表示で使用メンバー名も同時に参照するため、関連ユーザーをまとめて取得
+    devices = (
+        Device.query
+        # device.user.name を一覧で使用するため、関連ユーザーをまとめて取得（N+1問題を防ぐ）
+        .options(joinedload(Device.user))
+        .order_by(Device.id.asc())
+        .all()
+    )
+    return render_template("admin_devices.html", devices=devices)
 
 
 @app.after_request
