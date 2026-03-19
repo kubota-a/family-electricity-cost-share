@@ -6,11 +6,10 @@ from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from decimal import Decimal, InvalidOperation
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 import os
 
-from models import db, Device, DeviceUsageLog, User
+from models import db, Device, DeviceUsageLog, FinalizedBillMember, User
 
 
 # .env から環境変数を読み込む
@@ -264,29 +263,35 @@ def admin_user_delete(user_id):
         flash("登録済み機器があるメンバーは削除できません。")
         return redirect(url_for("admin_users"))
 
-    # 一般ユーザーは運転中(end_time が NULL)の機器記録がある場合は削除不可
-    if target_user.role == "user":
-        has_running_device = (
-            DeviceUsageLog.query
-            .join(Device, DeviceUsageLog.device_id == Device.id)
-            .filter(
-                Device.user_id == target_user.id,
-                DeviceUsageLog.end_time.is_(None),
-            )
-            .first()
-            is not None
-        )
-        if has_running_device:
-            flash("運転中の機器があるメンバーは削除できません。")
-            return redirect(url_for("admin_users"))
+    # 確定済み電気料金の内訳が1件でもある場合は削除不可
+    has_finalized_bill_member = (
+        FinalizedBillMember.query
+        .filter(FinalizedBillMember.user_id == target_user.id)
+        .first()
+        is not None
+    )
+    if has_finalized_bill_member:
+        flash("確定済み電気料金の内訳データがあるメンバーは削除できません。")
+        return redirect(url_for("admin_users"))
 
-    try:
-        db.session.delete(target_user)
-        db.session.commit()
-        flash("シェアメンバーを削除しました。")
-    except IntegrityError:
-        db.session.rollback()
-        flash("関連データがあるため削除できません。")
+    # 運転中(end_time が NULL)の機器記録がある場合は削除不可
+    has_running_device = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .filter(
+            Device.user_id == target_user.id,
+            DeviceUsageLog.end_time.is_(None),
+        )
+        .first()
+        is not None
+    )
+    if has_running_device:
+        flash("運転中の機器があるメンバーは削除できません。")
+        return redirect(url_for("admin_users"))
+
+    db.session.delete(target_user)
+    db.session.commit()
+    flash("シェアメンバーを削除しました。")
 
     return redirect(url_for("admin_users"))
 
@@ -384,31 +389,20 @@ def admin_device_delete(device_id):
         flash("削除対象の機器が見つかりません。")
         return redirect(url_for("admin_devices"))
 
-    # end_time が NULL の利用記録が1件でもあれば「運転中」と判定して削除不可
-    has_running_log = (
+    # 使用記録が1件でもある機器は削除不可
+    has_usage_log = (
         DeviceUsageLog.query
-        .filter(
-            DeviceUsageLog.device_id == target_device.id,
-            DeviceUsageLog.end_time.is_(None),
-        )
+        .filter(DeviceUsageLog.device_id == target_device.id)
         .first()
         is not None
     )
-    if has_running_log:
-        flash("運転中の機器は削除できません。")
+    if has_usage_log:
+        flash("使用記録がある機器は削除できません。")
         return redirect(url_for("admin_devices"))
 
-    try:
-        # 運転中チェック済みのため、FK制約エラー回避として紐づく過去ログを先に削除する
-        DeviceUsageLog.query.filter(
-            DeviceUsageLog.device_id == target_device.id
-        ).delete(synchronize_session=False)
-        db.session.delete(target_device)
-        db.session.commit()
-        flash("機器を削除しました。")
-    except IntegrityError:
-        db.session.rollback()
-        flash("関連データがあるため削除できません。")
+    db.session.delete(target_device)
+    db.session.commit()
+    flash("機器を削除しました。")
 
     return redirect(url_for("admin_devices"))
 
