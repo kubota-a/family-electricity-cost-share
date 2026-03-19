@@ -20,7 +20,13 @@ load_dotenv()
 app = Flask(__name__)
 
 # セッションやflashで使う秘密鍵
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
+secret_key = os.environ.get("SECRET_KEY")
+if not secret_key:
+    # Render本番では未設定のまま起動しない（ローカル開発時のみ仮キー許可）
+    if os.environ.get("RENDER"):
+        raise RuntimeError("SECRET_KEY is not set")
+    secret_key = "dev-secret-key-change-me"
+app.secret_key = secret_key
 
 # CSRF対策を有効化（フォームのなりすまし送信を防ぐ）
 csrf = CSRFProtect(app)
