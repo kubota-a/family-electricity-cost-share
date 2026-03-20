@@ -235,8 +235,8 @@
         </div>
 
         <div class="status-content">
-            <div class="status-badge">
-                運転中
+            <div class="status-badge" style="background-color: {{ running_device_color }};">
+                {{ running_device_name }}
                 <span>運転中</span>
             </div>
 
@@ -245,7 +245,10 @@
                 <div class="cost-display">--円（目安）</div>
             </div>
 
-            <button class="btn-stop" type="button">運転を停止</button>
+            <form action="{{ url_for('user_usage_stop') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn-stop" type="submit">運転を停止</button>
+            </form>
         </div>
     </main>
 </div>

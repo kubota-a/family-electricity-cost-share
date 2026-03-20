@@ -196,6 +196,8 @@ def user_top():
         return render_template(
             "user_top_running.html",
             user_name=current_user.name,
+            running_device_name=running_log.device.name,
+            running_device_color=running_log.device.color,
         )
 
     # 運転中レコードがないときは、所有機器一覧つきの通常トップを表示する
@@ -254,6 +256,35 @@ def user_usage_start():
         end_time=None,
     )
     db.session.add(new_log)
+    db.session.commit()
+    return redirect(url_for("user_top"))
+
+
+@app.route("/user/usage/stop", methods=["POST"])
+@login_required
+def user_usage_stop():
+    """ユーザーが自分の現在運転中の機器を停止する。"""
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    # 停止対象はURL指定せず、サーバー側で「自分の運転中1件」を探す
+    running_log = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .filter(
+            Device.user_id == current_user.id,
+            DeviceUsageLog.end_time.is_(None),
+        )
+        .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
+        .first()
+    )
+
+    # 二重停止対策: すでに停止済みならエラーとして通常トップへ戻す
+    if running_log is None:
+        flash("停止できる運転中の機器が見つかりません。")
+        return redirect(url_for("user_top"))
+
+    running_log.end_time = datetime.now(timezone.utc)
     db.session.commit()
     return redirect(url_for("user_top"))
 
