@@ -193,6 +193,29 @@
             cursor: pointer;
         }
 
+        #startConfirmModal .modal-content {
+            gap: 30px;
+        }
+
+        .device-badge {
+            display: inline-block;
+            background-color: #ff9999;
+            color: #000;
+            padding: 20px 50px;
+            border-radius: 50px;
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0 auto;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .confirm-message {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--text-color);
+            line-height: 1.4;
+        }
+
         main {
             padding: 20px;
             text-align: center;
@@ -348,10 +371,10 @@
 
         <div class="device-list">
             {% for device in devices %}
-            <form action="{{ url_for('user_usage_start') }}" method="post">
+            <form action="{{ url_for('user_usage_start') }}" method="post" class="start-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="device_id" value="{{ device.id }}">
-                <button type="submit" class="device-item">
+                <button type="button" class="device-item start-button" data-device-name="{{ device.name }}" data-device-color="{{ device.color }}">
                     <div class="status-circle" style="background-color: {{ device.color }};"></div>
                     <span class="device-name">{{ device.name }}</span>
                 </button>
@@ -359,6 +382,17 @@
             {% endfor %}
         </div>
     </main>
+
+    <div class="modal-overlay" id="startConfirmModal">
+        <div class="modal-content">
+            <div class="device-badge" id="startConfirmDeviceBadge">暖房</div>
+            <p class="confirm-message">運転を<br>開始しますか？</p>
+            <div class="button-group">
+                <button class="btn-main" type="button" id="confirmStartButton">開始する</button>
+                <button class="btn-cancel" type="button" id="cancelStartButton">やめる</button>
+            </div>
+        </div>
+    </div>
 
     <div class="modal-overlay" id="logoutModal">
         <div class="modal-content">
@@ -383,6 +417,40 @@
     const openLogoutModalButton = document.getElementById("openLogoutModal");
     const closeLogoutModalButton = document.getElementById("closeLogoutModal");
     const logoutModal = document.getElementById("logoutModal");
+    const startConfirmModal = document.getElementById("startConfirmModal");
+    const startConfirmDeviceBadge = document.getElementById("startConfirmDeviceBadge");
+    const confirmStartButton = document.getElementById("confirmStartButton");
+    const cancelStartButton = document.getElementById("cancelStartButton");
+    const startButtons = document.querySelectorAll(".start-button");
+    let pendingStartForm = null;
+
+    // 運転開始確認モーダルの開閉制御
+    startButtons.forEach(function (startButton) {
+        startButton.addEventListener("click", function () {
+            pendingStartForm = startButton.closest(".start-form");
+            startConfirmDeviceBadge.textContent = startButton.dataset.deviceName;
+            startConfirmDeviceBadge.style.backgroundColor = startButton.dataset.deviceColor;
+            startConfirmModal.classList.add("active");
+        });
+    });
+
+    confirmStartButton.addEventListener("click", function () {
+        if (pendingStartForm !== null) {
+            pendingStartForm.submit();
+        }
+    });
+
+    cancelStartButton.addEventListener("click", function () {
+        startConfirmModal.classList.remove("active");
+        pendingStartForm = null;
+    });
+
+    startConfirmModal.addEventListener("click", function (event) {
+        if (event.target === startConfirmModal) {
+            startConfirmModal.classList.remove("active");
+            pendingStartForm = null;
+        }
+    });
 
     openLogoutModalButton.addEventListener("click", function () {
         logoutModal.classList.add("active");

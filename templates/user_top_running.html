@@ -203,6 +203,114 @@
             cursor: pointer;
             box-shadow: var(--shadow);
         }
+
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        #stopConfirmModal .modal-content {
+            width: 85%;
+            background: var(--card-bg);
+            border-radius: 30px;
+            padding: 30px 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #stopConfirmModal .modal-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--text-color);
+            margin-bottom: 5px;
+        }
+
+        #stopConfirmModal .status-badge {
+            display: inline-block;
+            color: #000;
+            padding: 15px 40px;
+            border-radius: 40px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin: 0 auto;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: auto;
+        }
+
+        .stats-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 10px 0;
+        }
+
+        .stats-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .stats-label {
+            font-size: 1rem;
+            color: #777;
+            font-weight: bold;
+        }
+
+        .stats-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        #stopConfirmModal .button-group {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        #stopConfirmModal .btn-main {
+            width: 100%;
+            max-width: 240px;
+            padding: 14px;
+            border-radius: 12px;
+            border: 3px solid #666;
+            background: #fff;
+            color: var(--text-color);
+            font-size: 1.15rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #stopConfirmModal .btn-cancel {
+            width: 100%;
+            max-width: 150px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #999;
+            background: #f8f8f8;
+            color: #666;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -247,10 +355,34 @@
 
             <form action="{{ url_for('user_usage_stop') }}" method="post">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn-stop" type="submit">運転を停止</button>
+                <button class="btn-stop" type="button" id="openStopConfirmModal">運転を停止</button>
             </form>
         </div>
     </main>
+
+    <div class="modal-overlay" id="stopConfirmModal">
+        <div class="modal-content">
+            <p class="modal-title">運転を停止しますか？</p>
+
+            <div class="status-badge" style="background-color: {{ running_device_color }};">{{ running_device_name }}</div>
+
+            <div class="stats-area">
+                <div class="stats-item">
+                    <span class="stats-label">使用時間</span>
+                    <span class="stats-value" id="stopConfirmElapsedTime">--時間--分</span>
+                </div>
+                <div class="stats-item">
+                    <span class="stats-label">料金目安</span>
+                    <span class="stats-value" id="stopConfirmEstimatedCost">--円</span>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-main" type="button" id="confirmStopButton">記録を終了する</button>
+                <button class="btn-cancel" type="button" id="cancelStopButton">やめる</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -260,11 +392,20 @@
     const estimatedUnitPrice = {{ estimated_unit_price if estimated_unit_price is not none else 'null' }};
     const elapsedTimeDisplay = document.getElementById("elapsedTimeDisplay");
     const estimatedCostDisplay = document.getElementById("estimatedCostDisplay");
+    const openStopConfirmModalButton = document.getElementById("openStopConfirmModal");
+    const stopConfirmModal = document.getElementById("stopConfirmModal");
+    const confirmStopButton = document.getElementById("confirmStopButton");
+    const cancelStopButton = document.getElementById("cancelStopButton");
+    const stopConfirmElapsedTime = document.getElementById("stopConfirmElapsedTime");
+    const stopConfirmEstimatedCost = document.getElementById("stopConfirmEstimatedCost");
+    const stopForm = openStopConfirmModalButton.closest("form");
 
     function updateUsageStats() {
         if (Number.isNaN(startTime.getTime())) {
             elapsedTimeDisplay.textContent = "--時間--分";
             estimatedCostDisplay.textContent = "計算に必要な時刻情報が不正です";
+            stopConfirmElapsedTime.textContent = "--時間--分";
+            stopConfirmEstimatedCost.textContent = "--円";
             return;
         }
 
@@ -278,16 +419,38 @@
         const hours = Math.floor(elapsedMinutes / 60);
         const minutes = elapsedMinutes % 60;
         elapsedTimeDisplay.textContent = `${hours}時間${String(minutes).padStart(2, "0")}分`;
+        stopConfirmElapsedTime.textContent = elapsedTimeDisplay.textContent;
 
         if (estimatedUnitPrice === null || Number.isNaN(Number(estimatedUnitPrice))) {
             estimatedCostDisplay.textContent = "仮単価未設定";
+            stopConfirmEstimatedCost.textContent = "仮単価未設定";
             return;
         }
 
         const elapsedHours = elapsedMs / (1000 * 60 * 60);
         const estimatedCost = devicePowerKw * elapsedHours * Number(estimatedUnitPrice);
         estimatedCostDisplay.textContent = `${Math.round(estimatedCost)}円（目安）`;
+        stopConfirmEstimatedCost.textContent = `${Math.round(estimatedCost)}円`;
     }
+
+    // 運転停止確認モーダルの開閉制御
+    openStopConfirmModalButton.addEventListener("click", function () {
+        stopConfirmModal.classList.add("active");
+    });
+
+    confirmStopButton.addEventListener("click", function () {
+        stopForm.submit();
+    });
+
+    cancelStopButton.addEventListener("click", function () {
+        stopConfirmModal.classList.remove("active");
+    });
+
+    stopConfirmModal.addEventListener("click", function (event) {
+        if (event.target === stopConfirmModal) {
+            stopConfirmModal.classList.remove("active");
+        }
+    });
 
     updateUsageStats(); // 初回表示時に即時計算
     setInterval(updateUsageStats, 60 * 1000);
