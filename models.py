@@ -147,3 +147,21 @@ class FinalizedBillMember(db.Model):
     )
     user = db.relationship("User", back_populates="finalized_bill_members")
 
+
+class AppSettings(db.Model):
+    __tablename__ = "app_settings"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    estimated_unit_price = db.Column(db.Numeric(10, 2), nullable=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+

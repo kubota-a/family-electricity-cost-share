@@ -15,7 +15,15 @@ from typing import Dict, List, Tuple
 from werkzeug.security import generate_password_hash
 
 from app import app
-from models import db, Device, DeviceUsageLog, FinalizedBill, FinalizedBillMember, User
+from models import (
+    db,
+    AppSettings,
+    Device,
+    DeviceUsageLog,
+    FinalizedBill,
+    FinalizedBillMember,
+    User,
+)
 
 
 # +09:00（日本時間）を明示的に利用する
@@ -74,6 +82,7 @@ def clear_all_data() -> Dict[str, int]:
     )
     deleted_counts["devices"] = Device.query.delete(synchronize_session=False)
     deleted_counts["users"] = User.query.delete(synchronize_session=False)
+    deleted_counts["app_settings"] = AppSettings.query.delete(synchronize_session=False)
 
     db.session.flush()
     return deleted_counts
@@ -546,6 +555,15 @@ def seed_device_usage_logs(device_map: Dict[Tuple[str, str], Device]) -> int:
     return len(logs)
 
 
+def seed_app_settings() -> int:
+    """app_settings を1件投入する。"""
+    # 全削除後に毎回1件だけ投入する
+    setting = AppSettings(estimated_unit_price=Decimal("28.00"))
+    db.session.add(setting)
+    db.session.flush()
+    return 1
+
+
 def run_seed() -> None:
     """開発用データの全削除 -> 再投入を実行する。"""
     print("=== Development seed started ===")
@@ -556,9 +574,11 @@ def run_seed() -> None:
         f"finalized_bills={deleted_counts['finalized_bills']}, "
         f"device_usage_logs={deleted_counts['device_usage_logs']}, "
         f"devices={deleted_counts['devices']}, "
-        f"users={deleted_counts['users']}"
+        f"users={deleted_counts['users']}, "
+        f"app_settings={deleted_counts['app_settings']}"
     )
 
+    app_settings_count = seed_app_settings()
     user_map = seed_users()
     device_map = seed_devices(user_map)
     bill_map = seed_finalized_bills()
@@ -573,6 +593,7 @@ def run_seed() -> None:
     print(f"- finalized_bills: {len(bill_map)}")
     print(f"- finalized_bill_members: {finalized_member_count}")
     print(f"- device_usage_logs: {usage_log_count}")
+    print(f"- app_settings: {app_settings_count}")
     print("=== Development seed completed successfully ===")
 
 
