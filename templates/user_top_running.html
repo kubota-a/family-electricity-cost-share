@@ -241,8 +241,8 @@
             </div>
 
             <div class="usage-stats">
-                <div class="time-display">--時間--分</div>
-                <div class="cost-display">--円（目安）</div>
+                <div class="time-display" id="elapsedTimeDisplay">--時間--分</div>
+                <div class="cost-display" id="estimatedCostDisplay">--円（目安）</div>
             </div>
 
             <form action="{{ url_for('user_usage_stop') }}" method="post">
@@ -252,6 +252,46 @@
         </div>
     </main>
 </div>
+
+<script>
+    // 運転開始時刻からの経過時間と目安料金を表示し、1分ごとに更新する
+    const startTime = new Date("{{ running_start_time_iso }}");
+    const devicePowerKw = Number("{{ running_device_power_kw }}");
+    const estimatedUnitPrice = {{ estimated_unit_price if estimated_unit_price is not none else 'null' }};
+    const elapsedTimeDisplay = document.getElementById("elapsedTimeDisplay");
+    const estimatedCostDisplay = document.getElementById("estimatedCostDisplay");
+
+    function updateUsageStats() {
+        if (Number.isNaN(startTime.getTime())) {
+            elapsedTimeDisplay.textContent = "--時間--分";
+            estimatedCostDisplay.textContent = "計算に必要な時刻情報が不正です";
+            return;
+        }
+
+        const now = new Date();
+        let elapsedMs = now.getTime() - startTime.getTime();
+        if (elapsedMs < 0) {
+            elapsedMs = 0;
+        }
+
+        const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
+        const hours = Math.floor(elapsedMinutes / 60);
+        const minutes = elapsedMinutes % 60;
+        elapsedTimeDisplay.textContent = `${hours}時間${String(minutes).padStart(2, "0")}分`;
+
+        if (estimatedUnitPrice === null || Number.isNaN(Number(estimatedUnitPrice))) {
+            estimatedCostDisplay.textContent = "仮単価未設定";
+            return;
+        }
+
+        const elapsedHours = elapsedMs / (1000 * 60 * 60);
+        const estimatedCost = devicePowerKw * elapsedHours * Number(estimatedUnitPrice);
+        estimatedCostDisplay.textContent = `${Math.round(estimatedCost)}円（目安）`;
+    }
+
+    updateUsageStats(); // 初回表示時に即時計算
+    setInterval(updateUsageStats, 60 * 1000);
+</script>
 
 </body>
 </html>

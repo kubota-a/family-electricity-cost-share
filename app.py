@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
 import os
 
-from models import db, Device, DeviceUsageLog, FinalizedBillMember, User
+from models import db, AppSettings, Device, DeviceUsageLog, FinalizedBillMember, User
 
 
 # .env から環境変数を読み込む
@@ -193,11 +193,23 @@ def user_top():
 
     # 運転中レコードがあるときは「運転中トップ」を表示する
     if running_log is not None:
+        # 仮単価はアプリ全体設定の先頭1件から取得する（未設定ならNone）
+        app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
+        estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
+
+        # DB時刻がタイムゾーンなしで返る環境でも計算が崩れないよう補正する
+        running_start_time = running_log.start_time
+        if running_start_time.tzinfo is None:
+            running_start_time = running_start_time.replace(tzinfo=timezone.utc)
+
         return render_template(
             "user_top_running.html",
             user_name=current_user.name,
             running_device_name=running_log.device.name,
             running_device_color=running_log.device.color,
+            running_start_time_iso=running_start_time.isoformat(),
+            running_device_power_kw=float(running_log.device.power_kw),
+            estimated_unit_price=float(estimated_unit_price) if estimated_unit_price is not None else None,
         )
 
     # 運転中レコードがないときは、所有機器一覧つきの通常トップを表示する
