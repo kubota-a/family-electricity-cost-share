@@ -312,7 +312,7 @@
     </header>
 
     <main>
-        <h1>花子さんのマイページ</h1>
+        <h1>{{ user_name }}さんのマイページ</h1>
 
         <div class="action-grid">
             <div class="action-card">
@@ -328,26 +328,12 @@
         <p class="section-title">運転を開始する</p>
 
         <div class="device-list">
+            {% for device in devices %}
             <div class="device-item">
-                <div class="status-circle color-heating"></div>
-                <span class="device-name">暖房</span>
+                <div class="status-circle" style="background-color: {{ device.color }};"></div>
+                <span class="device-name">{{ device.name }}</span>
             </div>
-            <div class="device-item">
-                <div class="status-circle color-stove-weak"></div>
-                <span class="device-name">ストーブ弱</span>
-            </div>
-            <div class="device-item">
-                <div class="status-circle color-stove-strong"></div>
-                <span class="device-name">ストーブ強</span>
-            </div>
-            <div class="device-item">
-                <div class="status-circle color-cooling"></div>
-                <span class="device-name">冷房</span>
-            </div>
-            <div class="device-item">
-                <div class="status-circle" style="background-color: #ddd;"></div>
-                <span class="device-name">予備デバイス</span>
-            </div>
+            {% endfor %}
         </div>
     </main>
 

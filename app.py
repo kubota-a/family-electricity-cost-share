@@ -169,7 +169,40 @@ def user_top():
     # admin が user 画面へ来た場合は、自分のトップへ戻す（flashなし）
     if current_user.role != "user":
         return redirect_by_role(current_user)
-    return render_template("user_top.html")
+
+    # ログイン中ユーザーの所有機器だけを取得する
+    owned_devices = (
+        Device.query
+        .filter(Device.user_id == current_user.id)
+        .order_by(Device.id.asc())
+        .all()
+    )
+
+    # 自分の所有機器に紐づく「運転中(end_timeがNULL)」レコードを確認する
+    running_log = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .filter(
+            Device.user_id == current_user.id,
+            DeviceUsageLog.end_time.is_(None),
+        )
+        .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
+        .first()
+    )
+
+    # 運転中レコードがあるときは「運転中トップ」を表示する
+    if running_log is not None:
+        return render_template(
+            "user_top_running.html",
+            user_name=current_user.name,
+        )
+
+    # 運転中レコードがないときは、所有機器一覧つきの通常トップを表示する
+    return render_template(
+        "user_top_idle.html",
+        user_name=current_user.name,
+        devices=owned_devices,
+    )
 
 
 @app.route("/admin/top")
