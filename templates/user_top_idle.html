@@ -209,6 +209,17 @@
             font-weight: bold;
         }
 
+        .flash-message {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            color: #666;
+            font-weight: bold;
+            box-shadow: var(--shadow);
+            font-size: 0.9rem;
+        }
+
         .action-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -273,6 +284,9 @@
             box-shadow: var(--shadow);
             position: relative;
             flex-shrink: 0; /* スクロール内で潰れないように固定 */
+            width: 100%;
+            border: none;
+            cursor: pointer;
         }
 
         .status-circle {
@@ -313,6 +327,11 @@
 
     <main>
         <h1>{{ user_name }}さんのマイページ</h1>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-message">{{ messages[-1] }}</div>
+        {% endif %}
+        {% endwith %}
 
         <div class="action-grid">
             <div class="action-card">
@@ -329,10 +348,14 @@
 
         <div class="device-list">
             {% for device in devices %}
-            <div class="device-item">
-                <div class="status-circle" style="background-color: {{ device.color }};"></div>
-                <span class="device-name">{{ device.name }}</span>
-            </div>
+            <form action="{{ url_for('user_usage_start') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="device_id" value="{{ device.id }}">
+                <button type="submit" class="device-item">
+                    <div class="status-circle" style="background-color: {{ device.color }};"></div>
+                    <span class="device-name">{{ device.name }}</span>
+                </button>
+            </form>
             {% endfor %}
         </div>
     </main>

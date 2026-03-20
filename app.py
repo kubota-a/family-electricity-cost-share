@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from decimal import Decimal, InvalidOperation
+from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
 import os
 
@@ -203,6 +204,58 @@ def user_top():
         user_name=current_user.name,
         devices=owned_devices,
     )
+
+
+@app.route("/user/usage/start", methods=["POST"])
+@login_required
+def user_usage_start():
+    """ユーザーが自分の機器の運転を開始する。"""
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    device_id_raw = request.form.get("device_id")
+    try:
+        device_id = int(device_id_raw)
+    except (TypeError, ValueError):
+        flash("開始対象の機器が不正です。")
+        return redirect(url_for("user_top"))
+
+    # 他人の機器を開始できないよう、ログイン中ユーザー所有の機器だけ許可する
+    target_device = (
+        Device.query
+        .filter(
+            Device.id == device_id,
+            Device.user_id == current_user.id,
+        )
+        .first()
+    )
+    if target_device is None:
+        flash("開始対象の機器が見つかりません。")
+        return redirect(url_for("user_top"))
+
+    # 二重開始防止のため、開始直前にもう一度「自分の運転中」を確認する
+    running_log = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .filter(
+            Device.user_id == current_user.id,
+            DeviceUsageLog.end_time.is_(None),
+        )
+        .first()
+    )
+    if running_log is not None:
+        flash("すでに運転中の機器があります。停止してから開始してください。")
+        return redirect(url_for("user_top"))
+
+    # 運転開始記録を作成する（TIMESTAMP WITH TIME ZONE 前提でUTCを保存）
+    new_log = DeviceUsageLog(
+        device_id=target_device.id,
+        start_time=datetime.now(timezone.utc),
+        end_time=None,
+    )
+    db.session.add(new_log)
+    db.session.commit()
+    return redirect(url_for("user_top"))
 
 
 @app.route("/admin/top")

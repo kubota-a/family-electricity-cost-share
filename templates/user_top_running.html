@@ -106,6 +106,16 @@
             font-weight: bold;
         }
 
+        .flash-message {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 10px 12px;
+            color: #666;
+            font-weight: bold;
+            box-shadow: var(--shadow);
+            font-size: 0.9rem;
+        }
+
         .action-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -207,6 +217,11 @@
 
     <main>
         <h1>{{ user_name }}さんのマイページ</h1>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-message">{{ messages[-1] }}</div>
+        {% endif %}
+        {% endwith %}
 
         <div class="action-grid">
             <div class="action-card">
