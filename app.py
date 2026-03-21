@@ -344,13 +344,21 @@ def user_usage_new():
         "end_time": "",
     }
 
-    # Step 2: 記録新規作成のPOSTを最小実装する
+    # 記録新規作成フォームの入力値を検証し、問題なければ保存する
     if request.method == "POST":
         form_data["device_id"] = request.form.get("device_id", "")
         form_data["start_time"] = request.form.get("start_time", "")
         form_data["end_time"] = request.form.get("end_time", "")
 
-        # 所有機器チェックのためにdevice_idを数値化する
+        # 必須チェック: 使用機器と開始日時は必須
+        if not form_data["device_id"]:
+            flash("使用機器を選択してください。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+        if not form_data["start_time"]:
+            flash("運転を開始した日時を入力してください。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # 所有権チェックの前にdevice_idを数値化する
         try:
             device_id = int(form_data["device_id"])
         except (TypeError, ValueError):
@@ -370,17 +378,53 @@ def user_usage_new():
             flash("選択した機器が見つかりません。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
 
-        # Step 2時点は最低限として、日時文字列をdatetimeへ変換する
+        # datetime-local文字列を日時として解釈できるかを確認する
         try:
             start_time = parse_datetime_local_as_utc(form_data["start_time"])
-            end_time = (
-                parse_datetime_local_as_utc(form_data["end_time"])
-                if form_data["end_time"]
-                else None
-            )
         except ValueError:
-            flash("日時の形式が不正です。", "danger")
+            flash("運転開始日時の形式が不正です。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        if form_data["end_time"]:
+            try:
+                end_time = parse_datetime_local_as_utc(form_data["end_time"])
+            except ValueError:
+                flash("運転停止日時の形式が不正です。", "danger")
+                return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+        else:
+            end_time = None
+
+        # 未来日時チェック（開始・停止ともに未来は不可）
+        now_utc = datetime.now(timezone.utc)
+        if start_time > now_utc:
+            flash("運転開始日時に未来の日時は指定できません。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+        if end_time is not None and end_time > now_utc:
+            flash("運転停止日時に未来の日時は指定できません。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # 停止日時入力時のみ、開始 < 停止 を確認する
+        if end_time is not None and start_time >= end_time:
+            flash("運転停止日時は運転開始日時より後を指定してください。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # 未終了記録の存在チェック（論理削除済みは除外）
+        # 未終了がある場合は、停止日時なし(end_time=NULL)の追加を禁止する
+        if end_time is None:
+            has_running_log = (
+                DeviceUsageLog.query
+                .join(Device, DeviceUsageLog.device_id == Device.id)
+                .filter(
+                    Device.user_id == current_user.id,
+                    DeviceUsageLog.deleted_at.is_(None),
+                    DeviceUsageLog.end_time.is_(None),
+                )
+                .first()
+                is not None
+            )
+            if has_running_log:
+                flash("現在運転中の機器があるため、停止日時なしでは追加できません。", "danger")
+                return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
 
         new_log = DeviceUsageLog(
             device_id=target_device.id,
