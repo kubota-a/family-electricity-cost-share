@@ -8,6 +8,7 @@ from functools import wraps
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
+from zoneinfo import ZoneInfo
 import os
 
 from models import db, AppSettings, Device, DeviceUsageLog, FinalizedBillMember, User
@@ -88,6 +89,9 @@ DEVICE_THEME_COLOR_MAP = {
     "c8": "#c0c0c0",
 }
 
+# 手動入力(datetime-local)は日本時間として解釈する
+TOKYO_TIMEZONE = ZoneInfo("Asia/Tokyo")
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -122,9 +126,20 @@ def admin_required(view_func):
     return wrapped_view
 
 
+def parse_datetime_local_as_utc(value):
+    """datetime-local文字列を日本時間として受け取り、UTCのaware datetimeへ変換する。"""
+    naive_dt = datetime.fromisoformat(value)
+    tokyo_aware_dt = naive_dt.replace(tzinfo=TOKYO_TIMEZONE)
+    return tokyo_aware_dt.astimezone(timezone.utc)
+
+
 @app.route("/")
 def index():
-    return "Family Electricity Share: Hello!"
+    """アプリのトップ入口。ログイン状態とロールに応じて適切な画面へリダイレクトする。"""
+    if not current_user.is_authenticated:
+        return redirect(url_for("login"))
+
+    return redirect_by_role(current_user)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -200,7 +215,16 @@ def user_top():
         # DB時刻がタイムゾーンなしで返る環境でも計算が崩れないよう補正する
         running_start_time = running_log.start_time
         if running_start_time.tzinfo is None:
-            running_start_time = running_start_time.replace(tzinfo=timezone.utc)
+            running_start_time = datetime(
+                running_start_time.year,
+                running_start_time.month,
+                running_start_time.day,
+                running_start_time.hour,
+                running_start_time.minute,
+                running_start_time.second,
+                running_start_time.microsecond,
+                tzinfo=timezone.utc,
+            )
 
         return render_template(
             "user_top_running.html",
@@ -299,6 +323,147 @@ def user_usage_stop():
     running_log.end_time = datetime.now(timezone.utc)
     db.session.commit()
     return redirect(url_for("user_top"))
+
+
+@app.route("/user/usage/new", methods=["GET", "POST"])
+@login_required
+def user_usage_new():
+    """一般ユーザー用の記録新規追加画面を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    # 使用機器の選択肢は、ログイン中ユーザーの所有機器だけを表示する
+    owned_devices = (
+        Device.query
+        .filter(Device.user_id == current_user.id)
+        .order_by(Device.id.asc())
+        .all()
+    )
+
+    # フォーム再表示時の差し戻し用データ
+    form_data = {
+        "device_id": "",
+        "start_time": "",
+        "end_time": "",
+    }
+
+    # 記録新規作成フォームの入力値を検証し、問題なければ保存する
+    if request.method == "POST":
+        form_data["device_id"] = request.form.get("device_id", "")
+        form_data["start_time"] = request.form.get("start_time", "")
+        form_data["end_time"] = request.form.get("end_time", "")
+
+        # 必須チェック: 使用機器と開始日時は必須
+        if not form_data["device_id"]:
+            flash("使用機器を選択してください。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+        if not form_data["start_time"]:
+            flash("運転を開始した日時を入力してください。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # 所有権チェックの前にdevice_idを数値化する
+        try:
+            device_id = int(form_data["device_id"])
+        except (TypeError, ValueError):
+            flash("使用機器の指定が不正です。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # 他ユーザー機器での記録作成を防ぐため、所有機器だけを許可する
+        target_device = (
+            Device.query
+            .filter(
+                Device.id == device_id,
+                Device.user_id == current_user.id,
+            )
+            .first()
+        )
+        if target_device is None:
+            flash("選択した機器が見つかりません。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # datetime-local文字列を日時として解釈できるかを確認する
+        try:
+            start_time = parse_datetime_local_as_utc(form_data["start_time"])
+        except ValueError:
+            flash("運転開始日時の形式が不正です。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        if form_data["end_time"]:
+            try:
+                end_time = parse_datetime_local_as_utc(form_data["end_time"])
+            except ValueError:
+                flash("運転停止日時の形式が不正です。", "danger")
+                return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+        else:
+            end_time = None
+
+        # 未来日時チェック（開始・停止ともに未来は不可）
+        now_utc = datetime.now(timezone.utc)
+        if start_time > now_utc:
+            flash("運転開始日時に未来の日時は指定できません。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+        if end_time is not None and end_time > now_utc:
+            flash("運転停止日時に未来の日時は指定できません。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # 停止日時入力時のみ、開始 < 停止 を確認する
+        if end_time is not None and start_time >= end_time:
+            flash("運転停止日時は運転開始日時より後を指定してください。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # 未終了記録の存在チェック（論理削除済みは除外）
+        # 未終了がある場合は、停止日時なし(end_time=NULL)の追加を禁止する
+        if end_time is None:
+            has_running_log = (
+                DeviceUsageLog.query
+                .join(Device, DeviceUsageLog.device_id == Device.id)
+                .filter(
+                    Device.user_id == current_user.id,
+                    DeviceUsageLog.deleted_at.is_(None),
+                    DeviceUsageLog.end_time.is_(None),
+                )
+                .first()
+                is not None
+            )
+            if has_running_log:
+                flash("現在運転中の機器があるため、停止日時なしでは追加できません。", "danger")
+                return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        new_log = DeviceUsageLog(
+            device_id=target_device.id,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        try:
+            db.session.add(new_log)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            flash("記録の保存に失敗しました。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        flash("新しい記録を追加しました", "success")
+        return redirect(url_for("user_usage_logs"))
+
+    # 使用機器の選択肢は、ログイン中ユーザーの所有機器だけを表示する
+    return render_template(
+        "user_usage_new.html",
+        devices=owned_devices,
+        form_data=form_data,
+    )
+
+
+@app.route("/user/usage/logs", methods=["GET"])
+@login_required
+def user_usage_logs():
+    """一般ユーザー用の記録一覧画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    return render_template("user_usage_logs.html")
 
 
 @app.route("/admin/top")

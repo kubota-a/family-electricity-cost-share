@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア - 機器使用記録一覧</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #fff0f3;
+            --header-bg: #ffffff;
+            --text-color: #4a4a4a;
+            --accent-pink: #f5b7b1;
+            --accent-pink-dark: #c47a8a;
+            --accent-blue: #d1f2ff;
+            --check-blue: #3498db;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            --flash-green: #2ecc71;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .phone-container {
+            width: 100%;
+            max-width: 430px;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (min-width: 431px) {
+            body {
+                padding: 20px;
+                align-items: center;
+                height: 100vh;
+                overflow: hidden;
+            }
+            .phone-container {
+                width: min(390px, 100%);
+                min-height: auto;
+                aspect-ratio: 9 / 19.5;
+                border-radius: 40px;
+                border: 8px solid #222;
+                box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+                overflow: hidden;
+            }
+        }
+
+        header {
+            background-color: var(--header-bg);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        .header-logo i { color: var(--accent-pink); font-size: 1.4rem; }
+        .header-logo {
+            display: inline-flex;
+            text-decoration: none;
+        }
+        .header-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            color: var(--text-color);
+            font-size: clamp(0.9rem, 4vw, 1.1rem);
+        }
+
+        .fixed-content {
+            padding: 20px 20px 10px;
+            text-align: center;
+        }
+
+        .summary-card {
+            background: var(--card-bg);
+            border: 2px solid #ddd;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .summary-title { font-size: clamp(0.85rem, 3.5vw, 1rem); margin-bottom: 5px; }
+        .summary-amount { font-size: clamp(1.2rem, 5vw, 1.5rem); font-weight: bold; }
+
+        .note { font-size: 0.7rem; color: #888; line-height: 1.4; margin-bottom: 10px; }
+
+        .flash-message {
+            color: var(--flash-green);
+            font-weight: bold;
+            font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+            margin-bottom: 15px;
+        }
+        .flash-message.danger {
+            color: #d9534f;
+        }
+
+        .instruction {
+            font-size: clamp(0.9rem, 3.8vw, 1rem);
+            line-height: 1.5;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .instruction i { color: var(--check-blue); font-size: 1.4rem; }
+
+        .filter-section {
+            padding: 0 20px 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .device-select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            font-size: 0.9rem;
+            color: var(--text-color);
+        }
+
+        .usage-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px 20px 100px;
+        }
+
+        .usage-item {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-info { flex-grow: 1; }
+        .item-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .item-name { font-weight: bold; font-size: clamp(1rem, 4.5vw, 1.2rem); }
+        .item-price { font-weight: bold; color: var(--text-color); }
+        .item-time { font-size: 0.85rem; color: #666; line-height: 1.4; }
+
+        .check-icon {
+            margin-left: 15px;
+            color: var(--check-blue);
+            font-size: 2.2rem;
+        }
+
+        footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: var(--bg-color);
+            padding: 15px 20px 30px;
+            text-align: center;
+        }
+
+        .footer-button {
+            width: 100%;
+            max-width: 350px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 3px solid #666;
+            background: #fff;
+            color: var(--text-color);
+            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <header>
+        <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
+            <i class="fas fa-home"></i>
+        </a>
+        <div class="header-title">機器使用状況</div>
+    </header>
+
+    <div class="fixed-content">
+        <div class="summary-card">
+            <div class="summary-title">2025/11/20以降の<br>機器使用料(目安)</div>
+            <div class="summary-amount">合計〇〇〇〇〇円</div>
+        </div>
+        <p class="note">※使用料は仮単価で算出した目安です。<br>請求額確定後に再計算されます。</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% set category, message = messages[-1] %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% else %}
+        <div class="flash-message"></div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="instruction">
+            操作したい記録の<br>
+            <i class="fas fa-check-circle"></i> を押してください
+        </div>
+    </div>
+
+    <div class="filter-section">
+        <select class="device-select">
+            <option value="all">すべての機器</option>
+            <option value="heater">暖房</option>
+            <option value="stove-weak">ストーブ弱</option>
+            <option value="stove-strong">ストーブ強</option>
+            <option value="cooling">冷房</option>
+        </select>
+    </div>
+
+    <main class="usage-list">
+        <div class="usage-item">
+            <div class="item-info">
+                <div class="item-header">
+                    <span class="item-name">ストーブ弱</span>
+                    <span class="item-price">23円</span>
+                </div>
+                <div class="item-time">
+                    ON &nbsp; mm/dd(aaa) hh:mm<br>
+                    OFF &nbsp; mm/dd(aaa) hh:mm
+                </div>
+            </div>
+            <i class="fas fa-check-circle check-icon"></i>
+        </div>
+
+        <div class="usage-item">
+            <div class="item-info">
+                <div class="item-header">
+                    <span class="item-name">暖房</span>
+                    <span class="item-price">80円</span>
+                </div>
+                <div class="item-time">
+                    ON &nbsp; mm/dd(aaa) hh:mm<br>
+                    OFF &nbsp; mm/dd(aaa) hh:mm
+                </div>
+            </div>
+            <i class="fas fa-check-circle check-icon"></i>
+        </div>
+
+        <div class="usage-item">
+            <div class="item-info">
+                <div class="item-header">
+                    <span class="item-name">暖房</span>
+                    <span class="item-price">150円</span>
+                </div>
+                <div class="item-time">
+                    ON &nbsp; mm/dd(aaa) hh:mm<br>
+                    OFF &nbsp; mm/dd(aaa) hh:mm
+                </div>
+            </div>
+            <i class="fas fa-check-circle check-icon"></i>
+        </div>
+    </main>
+
+    <footer>
+        <button class="footer-button" type="button">シェア金額一覧を見る</button>
+    </footer>
+</div>
+
+</body>
+</html>
