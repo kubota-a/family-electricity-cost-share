@@ -301,6 +301,39 @@ def user_usage_stop():
     return redirect(url_for("user_top"))
 
 
+@app.route("/user/usage/new", methods=["GET"])
+@login_required
+def user_usage_new():
+    """一般ユーザー用の記録新規追加画面を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    # 使用機器の選択肢は、ログイン中ユーザーの所有機器だけを表示する
+    owned_devices = (
+        Device.query
+        .filter(Device.user_id == current_user.id)
+        .order_by(Device.id.asc())
+        .all()
+    )
+
+    return render_template(
+        "user_usage_new.html",
+        devices=owned_devices,
+    )
+
+
+@app.route("/user/usage/logs", methods=["GET"])
+@login_required
+def user_usage_logs():
+    """一般ユーザー用の記録一覧画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    return render_template("user_usage_logs.html")
+
+
 @app.route("/admin/top")
 @login_required
 @admin_required
