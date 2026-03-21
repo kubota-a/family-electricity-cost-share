@@ -135,7 +135,11 @@ def parse_datetime_local_as_utc(value):
 
 @app.route("/")
 def index():
-    return "Family Electricity Share: Hello!"
+    """アプリのトップ入口。ログイン状態とロールに応じて適切な画面へリダイレクトする。"""
+    if not current_user.is_authenticated:
+        return redirect(url_for("login"))
+
+    return redirect_by_role(current_user)
 
 
 @app.route("/login", methods=["GET", "POST"])

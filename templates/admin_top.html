@@ -25,7 +25,7 @@
 
         /* --- サイドバー --- */
         .sidebar { width: 240px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; position: fixed; height: 100vh; }
-        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
         .sidebar-header i { color: var(--primary-color); font-size: 1.2rem; }
         .sidebar-header h1 { font-size: 1rem; line-height: 1.2; }
 
@@ -155,10 +155,10 @@
 <body>
 
     <aside class="sidebar">
-        <div class="sidebar-header">
+        <a href="{{ url_for('index') }}" class="sidebar-header">
             <i class="fas fa-home"></i>
             <h1>いえ電シェア<br>管理者パネル</h1>
-        </div>
+        </a>
         <nav class="nav-menu">
             <a href="{{ url_for('admin_top') }}" class="nav-item active">HOME</a>
             <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>

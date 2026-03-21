@@ -76,6 +76,7 @@
             color: var(--accent-orange);
             font-weight: bold;
             font-size: 1.1rem;
+            text-decoration: none;
         }
 
         .header-logo i {
@@ -317,10 +318,10 @@
 
 <div class="phone-container">
     <header>
-        <div class="header-logo">
+        <a href="{{ url_for('index') }}" class="header-logo">
             <i class="fas fa-home"></i>
             <span>いえ電シェア</span>
-        </div>
+        </a>
     </header>
 
     <main>
