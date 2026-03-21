@@ -92,6 +92,14 @@
             gap: 20px;
         }
 
+        .new-log-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
         .form-group {
             width: 100%;
             display: flex;
@@ -221,13 +229,21 @@
     </header>
 
     <main>
+        <form action="{{ url_for('user_usage_new') }}" method="post" class="new-log-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
         <div class="form-group">
             <span class="label-text">使った機器</span>
             <div class="select-wrapper">
                 <select name="device_id">
-                    <option value="" disabled selected>選択してください</option>
+                    <option value="" disabled {% if not form_data.device_id %}selected{% endif %}>選択してください</option>
                     {% for device in devices %}
-                    <option value="{{ device.id }}">{{ device.name }}</option>
+                    <option
+                        value="{{ device.id }}"
+                        {% if form_data.device_id == (device.id | string) %}selected{% endif %}
+                    >
+                        {{ device.name }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -235,13 +251,13 @@
 
         <div class="form-group">
             <span class="label-text">運転を開始した日時</span>
-            <input type="datetime-local" name="start_time">
+            <input type="datetime-local" name="start_time" value="{{ form_data.start_time }}">
         </div>
 
         <div class="form-group">
             <span class="label-text">運転を停止した日時</span>
             <span class="note-text">※現在運転中の場合は不要です</span>
-            <input type="datetime-local" name="end_time">
+            <input type="datetime-local" name="end_time" value="{{ form_data.end_time }}">
         </div>
 
         {% with messages = get_flashed_messages() %}
@@ -258,9 +274,10 @@
         </div>
 
         <div class="button-group">
-            <button class="btn-main" type="button">追加する</button>
+            <button class="btn-main" type="submit">追加する</button>
             <a href="{{ url_for('user_top') }}" class="btn-cancel">やめる</a>
         </div>
+        </form>
     </main>
 </div>
 

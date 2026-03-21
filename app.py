@@ -8,6 +8,7 @@ from functools import wraps
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
+from zoneinfo import ZoneInfo
 import os
 
 from models import db, AppSettings, Device, DeviceUsageLog, FinalizedBillMember, User
@@ -88,6 +89,9 @@ DEVICE_THEME_COLOR_MAP = {
     "c8": "#c0c0c0",
 }
 
+# 手動入力(datetime-local)は日本時間として解釈する
+TOKYO_TIMEZONE = ZoneInfo("Asia/Tokyo")
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -120,6 +124,13 @@ def admin_required(view_func):
         return view_func(*args, **kwargs)
 
     return wrapped_view
+
+
+def parse_datetime_local_as_utc(value):
+    """datetime-local文字列を日本時間として受け取り、UTCのaware datetimeへ変換する。"""
+    naive_dt = datetime.fromisoformat(value)
+    tokyo_aware_dt = naive_dt.replace(tzinfo=TOKYO_TIMEZONE)
+    return tokyo_aware_dt.astimezone(timezone.utc)
 
 
 @app.route("/")
@@ -200,7 +211,16 @@ def user_top():
         # DB時刻がタイムゾーンなしで返る環境でも計算が崩れないよう補正する
         running_start_time = running_log.start_time
         if running_start_time.tzinfo is None:
-            running_start_time = running_start_time.replace(tzinfo=timezone.utc)
+            running_start_time = datetime(
+                running_start_time.year,
+                running_start_time.month,
+                running_start_time.day,
+                running_start_time.hour,
+                running_start_time.minute,
+                running_start_time.second,
+                running_start_time.microsecond,
+                tzinfo=timezone.utc,
+            )
 
         return render_template(
             "user_top_running.html",
@@ -301,7 +321,7 @@ def user_usage_stop():
     return redirect(url_for("user_top"))
 
 
-@app.route("/user/usage/new", methods=["GET"])
+@app.route("/user/usage/new", methods=["GET", "POST"])
 @login_required
 def user_usage_new():
     """一般ユーザー用の記録新規追加画面を表示する。"""
@@ -317,9 +337,73 @@ def user_usage_new():
         .all()
     )
 
+    # フォーム再表示時の差し戻し用データ
+    form_data = {
+        "device_id": "",
+        "start_time": "",
+        "end_time": "",
+    }
+
+    # Step 2: 記録新規作成のPOSTを最小実装する
+    if request.method == "POST":
+        form_data["device_id"] = request.form.get("device_id", "")
+        form_data["start_time"] = request.form.get("start_time", "")
+        form_data["end_time"] = request.form.get("end_time", "")
+
+        # 所有機器チェックのためにdevice_idを数値化する
+        try:
+            device_id = int(form_data["device_id"])
+        except (TypeError, ValueError):
+            flash("使用機器の指定が不正です。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # 他ユーザー機器での記録作成を防ぐため、所有機器だけを許可する
+        target_device = (
+            Device.query
+            .filter(
+                Device.id == device_id,
+                Device.user_id == current_user.id,
+            )
+            .first()
+        )
+        if target_device is None:
+            flash("選択した機器が見つかりません。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        # Step 2時点は最低限として、日時文字列をdatetimeへ変換する
+        try:
+            start_time = parse_datetime_local_as_utc(form_data["start_time"])
+            end_time = (
+                parse_datetime_local_as_utc(form_data["end_time"])
+                if form_data["end_time"]
+                else None
+            )
+        except ValueError:
+            flash("日時の形式が不正です。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        new_log = DeviceUsageLog(
+            device_id=target_device.id,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        try:
+            db.session.add(new_log)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            flash("記録の保存に失敗しました。", "danger")
+            return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
+
+        flash("新しい記録を追加しました", "success")
+        return redirect(url_for("user_usage_logs"))
+
+    # 使用機器の選択肢は、ログイン中ユーザーの所有機器だけを表示する
     return render_template(
         "user_usage_new.html",
         devices=owned_devices,
+        form_data=form_data,
     )
 
 
