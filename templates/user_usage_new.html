@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>いえ電シェア - 忘れた分を追加する</title>
+    <title>いえ電シェア - 忘れた分を追加</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -159,6 +159,9 @@
             margin: 2px 0;
             text-align: center;
         }
+        .flash-message.danger {
+            color: #d9534f;
+        }
 
         .confirm-area {
             display: flex;
@@ -260,9 +263,10 @@
             <input type="datetime-local" name="end_time" value="{{ form_data.end_time }}">
         </div>
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="flash-message">{{ messages[-1] }}</div>
+        {% set category, message = messages[-1] %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
         {% else %}
         <div class="flash-message"></div>
         {% endif %}

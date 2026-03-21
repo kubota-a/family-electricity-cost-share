@@ -332,14 +332,14 @@
         {% endwith %}
 
         <div class="action-grid">
-            <div class="action-card">
+            <a href="{{ url_for('user_usage_new') }}" class="action-card">
                 <i class="fas fa-plus action-card-icon"></i>
                 <div>忘れた分<br>を追加</div>
-            </div>
-            <div class="action-card">
+            </a>
+            <a href="{{ url_for('user_usage_logs') }}" class="action-card">
                 <i class="fas fa-file-alt action-card-icon"></i>
                 <div>記録を<br>みる</div>
-            </div>
+            </a>
         </div>
 
         <div class="status-content">

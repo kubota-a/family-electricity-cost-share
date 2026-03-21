@@ -107,6 +107,9 @@
             font-size: clamp(0.8rem, 3.5vw, 0.9rem);
             margin-bottom: 15px;
         }
+        .flash-message.danger {
+            color: #d9534f;
+        }
 
         .instruction {
             font-size: clamp(0.9rem, 3.8vw, 1rem);
@@ -204,9 +207,10 @@
         </div>
         <p class="note">※使用料は仮単価で算出した目安です。<br>請求額確定後に再計算されます。</p>
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="flash-message">{{ messages[-1] }}</div>
+        {% set category, message = messages[-1] %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
         {% else %}
         <div class="flash-message"></div>
         {% endif %}
