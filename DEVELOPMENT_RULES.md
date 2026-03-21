@@ -1,4 +1,4 @@
-# DEVELOPMENT_RULES.md
+﻿# DEVELOPMENT_RULES.md
 
 このファイルは、Flask（Python製のWebアプリ用フレームワーク）アプリ「いえ電シェア」を実装・修正する際の共通ルールをまとめたものです。
 
