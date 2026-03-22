@@ -355,7 +355,7 @@
                 {{ unfinalized_start_display }}以降の<br>機器使用料(目安)
                 {% endif %}
             </div>
-            <div class="summary-amount">合計〇〇〇〇〇円</div>
+            <div class="summary-amount">合計{{ summary_total_yen }}円</div>
         </div>
         <p class="note">※使用料は仮単価で算出した目安です。<br>請求額確定後に再計算されます。</p>
 
@@ -375,13 +375,14 @@
     </div>
 
     <div class="filter-section">
-        <select class="device-select">
-            <option value="all">すべての機器</option>
-            <option value="heater">暖房</option>
-            <option value="stove-weak">ストーブ弱</option>
-            <option value="stove-strong">ストーブ強</option>
-            <option value="cooling">冷房</option>
-        </select>
+        <form method="get">
+            <select class="device-select" name="device_id" onchange="this.form.submit()">
+                <option value="">すべての機器</option>
+                {% for device in owned_devices %}
+                <option value="{{ device.id }}" {% if selected_device_id == device.id %}selected{% endif %}>{{ device.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
     </div>
 
     <main class="usage-list">
@@ -390,22 +391,24 @@
         <div class="usage-item">
             <div class="item-info">
                 <div class="item-header">
-                    <span class="item-name">{{ usage_log.device.name }}</span>
-                    <span class="item-price">--円</span>
+                    <span class="item-name">{{ usage_log.device_name }}</span>
+                    {% if usage_log.estimated_cost_yen is not none %}
+                    <span class="item-price">{{ usage_log.estimated_cost_yen }}円</span>
+                    {% endif %}
                 </div>
                 <div class="item-time">
                     <div class="item-time-main">
-                        ON &nbsp; {{ usage_log.start_time.strftime("%Y/%m/%d %H:%M") }}
-                        {% if usage_log.end_time %}
-                        <br>OFF &nbsp; {{ usage_log.end_time.strftime("%Y/%m/%d %H:%M") }}
+                        ON &nbsp; {{ usage_log.start_time_display }}
+                        {% if usage_log.end_time_display %}
+                        <br>OFF &nbsp; {{ usage_log.end_time_display }}
                         {% endif %}
                     </div>
-                    {% if not usage_log.end_time %}
+                    {% if usage_log.end_time_display is none %}
                     <span class="badge-status badge-on">運転中</span>
                     {% endif %}
                 </div>
             </div>
-            <i class="fas fa-check-circle check-icon"></i>
+            <i class="fas fa-check-circle check-icon" data-modal-id="usageActionModal-{{ usage_log.id }}"></i>
         </div>
         {% endfor %}
         {% else %}
@@ -413,17 +416,24 @@
         {% endif %}
     </main>
 
-    <div class="modal-overlay" id="usageActionModal">
+    {% for usage_log in usage_logs %}
+    <div class="modal-overlay" id="usageActionModal-{{ usage_log.id }}">
         <div class="modal-content">
             <div class="target-record-card">
                 <div class="record-info">
                     <div class="record-header">
-                        <span class="record-name">暖房</span>
-                        <span class="record-price">80円（目安）</span>
+                        <span class="record-name">{{ usage_log.device_name }}</span>
+                        {% if usage_log.estimated_cost_yen is not none %}
+                        <span class="record-price">{{ usage_log.estimated_cost_yen }}円（目安）</span>
+                        {% endif %}
                     </div>
                     <div class="record-time">
-                        ON &nbsp; yyyy/mm/dd(aaa) hh:mm<br>
-                        OFF &nbsp; yyyy/mm/dd(aaa) hh:mm
+                        ON &nbsp; {{ usage_log.start_time_display }}
+                        {% if usage_log.end_time_display %}
+                        <br>OFF &nbsp; {{ usage_log.end_time_display }}
+                        {% else %}
+                        <br>運転中
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -431,11 +441,11 @@
             <p class="confirm-message">この記録をどうしますか？</p>
 
             <div class="action-grid">
-                <a class="action-btn" href="{{ url_for('user_usage_delete', usage_log_id=1) }}">
+                <a class="action-btn" href="{{ url_for('user_usage_delete', usage_log_id=usage_log.id) }}">
                     <i class="fas fa-trash-can icon-delete"></i>
                     <span>削除</span>
                 </a>
-                <a class="action-btn" href="{{ url_for('user_usage_edit', usage_log_id=1) }}">
+                <a class="action-btn" href="{{ url_for('user_usage_edit', usage_log_id=usage_log.id) }}">
                     <i class="fas fa-pen-to-square icon-edit"></i>
                     <span>編集</span>
                 </a>
@@ -444,6 +454,7 @@
             <button class="btn-cancel" type="button">やめる</button>
         </div>
     </div>
+    {% endfor %}
 
     <footer>
         <button class="footer-button" type="button">シェア金額一覧を見る</button>
