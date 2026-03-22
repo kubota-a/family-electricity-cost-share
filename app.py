@@ -754,7 +754,7 @@ def user_usage_edit(usage_log_id):
 
         try:
             db.session.commit()
-        except Exception:
+        except Exception as e:
             app.logger.exception("user_usage_edit: 記録更新中に例外が発生しました")
             db.session.rollback()
             flash("記録の更新に失敗しました。", "danger")
@@ -781,15 +781,82 @@ def user_usage_edit(usage_log_id):
     )
 
 
-@app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET"])
+@app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET", "POST"])
 @login_required
 def user_usage_delete(usage_log_id):
-    """一般ユーザー用の記録削除画面（Step 1 の最小実装）を表示する。"""
+    """一般ユーザー用の記録削除画面を表示する。"""
     # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    return render_template("user_usage_delete.html", usage_log_id=usage_log_id)
+    # 最新の確定済み期間終了日時を基準に、未確定期間の開始日時を算出する
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+    if latest_finalized_bill is not None:
+        latest_period_end = ensure_utc_aware(latest_finalized_bill.period_end)
+        latest_period_end_in_tokyo = latest_period_end.astimezone(TOKYO_TIMEZONE)
+        unfinalized_start_tokyo = (
+            latest_period_end_in_tokyo
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_utc = unfinalized_start_tokyo.astimezone(timezone.utc)
+    else:
+        unfinalized_start_utc = None
+
+    # GET/POSTで同じ条件を使うため、対象レコード取得処理を共通化する
+    def find_target_usage_log():
+        usage_log_query = (
+            DeviceUsageLog.query
+            .join(Device, DeviceUsageLog.device_id == Device.id)
+            .options(joinedload(DeviceUsageLog.device))
+            .filter(
+                DeviceUsageLog.id == usage_log_id,
+                Device.user_id == current_user.id,
+                DeviceUsageLog.deleted_at.is_(None),
+            )
+        )
+        if unfinalized_start_utc is not None:
+            usage_log_query = usage_log_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+        return usage_log_query.first()
+
+    # 削除対象は「自分の機器」「未削除」「未確定期間の開始以降」の記録のみ許可する
+    target_usage_log = find_target_usage_log()
+    if target_usage_log is None:
+        return redirect(url_for("user_usage_logs"))
+
+    if request.method == "POST":
+        # 物理削除はせず、削除日時を保存して論理削除する
+        target_usage_log.deleted_at = datetime.now(timezone.utc)
+        try:
+            db.session.commit()
+        except Exception as e:
+            app.logger.exception("user_usage_delete: 記録削除中に例外が発生しました")
+            db.session.rollback()
+            flash("記録の削除に失敗しました。", "danger")
+        else:
+            flash("記録を削除しました", "success")
+            return redirect(url_for("user_usage_logs"))
+
+    # 一覧画面のモーダルと表示値をそろえるため、削除画面用の表示データを作る
+    app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
+    estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
+    usage_log = {
+        "id": target_usage_log.id,
+        "device_name": target_usage_log.device.name,
+        "start_time_display": format_datetime_for_jst_display(target_usage_log.start_time),
+        "end_time_display": (
+            format_datetime_for_jst_display(target_usage_log.end_time)
+            if target_usage_log.end_time is not None
+            else None
+        ),
+        "estimated_cost_yen": calculate_estimated_cost_yen(target_usage_log, estimated_unit_price),
+    }
+
+    return render_template("user_usage_delete.html", usage_log=usage_log)
 
 
 @app.route("/user/share-amounts", methods=["GET"])
