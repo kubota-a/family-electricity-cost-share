@@ -142,6 +142,12 @@
             overflow-y: auto;
             padding: 10px 20px 100px;
         }
+        .empty-message {
+            text-align: center;
+            color: #666;
+            font-weight: bold;
+            margin-top: 20px;
+        }
 
         .usage-item {
             background: var(--card-bg);
@@ -342,7 +348,13 @@
 
     <div class="fixed-content">
         <div class="summary-card">
-            <div class="summary-title">2025/11/20以降の<br>機器使用料(目安)</div>
+            <div class="summary-title">
+                {% if unfinalized_start_display == "初回利用記録" %}
+                初回利用記録<br>機器使用料(目安)
+                {% else %}
+                {{ unfinalized_start_display }}以降の<br>機器使用料(目安)
+                {% endif %}
+            </div>
             <div class="summary-amount">合計〇〇〇〇〇円</div>
         </div>
         <p class="note">※使用料は仮単価で算出した目安です。<br>請求額確定後に再計算されます。</p>
@@ -373,47 +385,32 @@
     </div>
 
     <main class="usage-list">
+        {% if usage_logs %}
+        {% for usage_log in usage_logs %}
         <div class="usage-item">
             <div class="item-info">
                 <div class="item-header">
-                    <span class="item-name">ストーブ弱</span>
-                    <span class="item-price">23円</span>
+                    <span class="item-name">{{ usage_log.device.name }}</span>
+                    <span class="item-price">--円</span>
                 </div>
                 <div class="item-time">
-                    <div class="item-time-main">ON &nbsp; mm/dd(aaa) hh:mm</div>
+                    <div class="item-time-main">
+                        ON &nbsp; {{ usage_log.start_time.strftime("%Y/%m/%d %H:%M") }}
+                        {% if usage_log.end_time %}
+                        <br>OFF &nbsp; {{ usage_log.end_time.strftime("%Y/%m/%d %H:%M") }}
+                        {% endif %}
+                    </div>
+                    {% if not usage_log.end_time %}
                     <span class="badge-status badge-on">運転中</span>
+                    {% endif %}
                 </div>
             </div>
             <i class="fas fa-check-circle check-icon"></i>
         </div>
-
-        <div class="usage-item">
-            <div class="item-info">
-                <div class="item-header">
-                    <span class="item-name">暖房</span>
-                    <span class="item-price">80円</span>
-                </div>
-                <div class="item-time">
-                    <div class="item-time-main">ON &nbsp; mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; mm/dd(aaa) hh:mm</div>
-                </div>
-            </div>
-            <i class="fas fa-check-circle check-icon"></i>
-        </div>
-
-        <div class="usage-item">
-            <div class="item-info">
-                <div class="item-header">
-                    <span class="item-name">暖房</span>
-                    <span class="item-price">150円</span>
-                </div>
-                <div class="item-time">
-                    <div class="item-time-main">ON &nbsp; mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; mm/dd(aaa) hh:mm</div>
-                </div>
-            </div>
-            <i class="fas fa-check-circle check-icon"></i>
-        </div>
+        {% endfor %}
+        {% else %}
+        <p class="empty-message">表示できる使用記録はありません</p>
+        {% endif %}
     </main>
 
     <div class="modal-overlay" id="usageActionModal">

@@ -6,12 +6,12 @@ from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from decimal import Decimal, InvalidOperation
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import joinedload
 from zoneinfo import ZoneInfo
 import os
 
-from models import db, AppSettings, Device, DeviceUsageLog, FinalizedBillMember, User
+from models import db, AppSettings, Device, DeviceUsageLog, FinalizedBill, FinalizedBillMember, User
 
 
 # .env から環境変数を読み込む
@@ -458,12 +458,62 @@ def user_usage_new():
 @app.route("/user/usage/logs", methods=["GET"])
 @login_required
 def user_usage_logs():
-    """一般ユーザー用の記録一覧画面（Step 1 の最小実装）を表示する。"""
+    """一般ユーザー用の記録一覧画面を表示する。"""
     # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    return render_template("user_usage_logs.html")
+    # 最新の確定済み期間終了日時を取得し、未確定期間の開始日時を決める
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+
+    if latest_finalized_bill is not None:
+        latest_period_end = latest_finalized_bill.period_end
+        # DB値がnaiveで返る環境でも崩れないようUTCとして補正する
+        if latest_period_end.tzinfo is None:
+            latest_period_end = latest_period_end.replace(tzinfo=timezone.utc)
+
+        latest_period_end_in_tokyo = latest_period_end.astimezone(TOKYO_TIMEZONE)
+        unfinalized_start_tokyo = (
+            latest_period_end_in_tokyo
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_utc = unfinalized_start_tokyo.astimezone(timezone.utc)
+        unfinalized_start_display = unfinalized_start_tokyo.strftime("%Y/%m/%d")
+    else:
+        unfinalized_start_utc = None
+        unfinalized_start_display = "初回利用記録"
+
+    # ログイン中ユーザーの所有機器に紐づく、未削除の使用記録だけを取得する
+    usage_logs_query = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .options(joinedload(DeviceUsageLog.device))
+        .filter(
+            Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
+        )
+    )
+
+    # 確定済み期間がある場合は、未確定期間の開始日時以降だけを表示する
+    if unfinalized_start_utc is not None:
+        usage_logs_query = usage_logs_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+
+    usage_logs = (
+        usage_logs_query
+        .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
+        .all()
+    )
+
+    return render_template(
+        "user_usage_logs.html",
+        usage_logs=usage_logs,
+        unfinalized_start_display=unfinalized_start_display,
+    )
 
 
 @app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET"])
