@@ -599,7 +599,7 @@ def user_usage_logs():
     )
 
 
-@app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET"])
+@app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET", "POST"])
 @login_required
 def user_usage_edit(usage_log_id):
     """一般ユーザー用の記録編集画面を表示する。"""
@@ -648,6 +648,60 @@ def user_usage_edit(usage_log_id):
         usage_log_query = usage_log_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
     target_usage_log = usage_log_query.first()
     if target_usage_log is None:
+        return redirect(url_for("user_usage_logs"))
+
+    # 編集画面の更新処理（Step 2: 最低限の入力チェックのみ）
+    if request.method == "POST":
+        form_data = {
+            "device_id": request.form.get("device_id", ""),
+            "start_time": request.form.get("start_time", ""),
+            "end_time": request.form.get("end_time", ""),
+        }
+
+        # 最低限の必須チェック（詳細バリデーションはStep 3で実装）
+        if not form_data["device_id"] or not form_data["start_time"]:
+            flash("入力内容に不足があります。", "danger")
+            return render_template(
+                "user_usage_edit.html",
+                devices=owned_devices,
+                form_data=form_data,
+                usage_log_id=usage_log_id,
+            )
+
+        try:
+            device_id = int(form_data["device_id"])
+            start_time = parse_datetime_local_as_utc(form_data["start_time"])
+            end_time = (
+                parse_datetime_local_as_utc(form_data["end_time"])
+                if form_data["end_time"]
+                else None
+            )
+        except (TypeError, ValueError):
+            flash("入力内容が不正です。", "danger")
+            return render_template(
+                "user_usage_edit.html",
+                devices=owned_devices,
+                form_data=form_data,
+                usage_log_id=usage_log_id,
+            )
+
+        target_usage_log.device_id = device_id
+        target_usage_log.start_time = start_time
+        target_usage_log.end_time = end_time
+
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            flash("記録の更新に失敗しました。", "danger")
+            return render_template(
+                "user_usage_edit.html",
+                devices=owned_devices,
+                form_data=form_data,
+                usage_log_id=usage_log_id,
+            )
+
+        flash("記録を更新しました", "success")
         return redirect(url_for("user_usage_logs"))
 
     form_data = {

@@ -214,11 +214,13 @@
     </header>
 
     <main>
+        <form action="{{ url_for('user_usage_edit', usage_log_id=usage_log_id) }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <span class="label-text">使った機器</span>
             <div class="select-wrapper">
                 <select name="device_id">
-                    <option value="" disabled selected>選択してください</option>
+                    <option value="" disabled {% if not form_data.device_id %}selected{% endif %}>選択してください</option>
                     {% for device in devices %}
                     <option value="{{ device.id }}" {% if form_data.device_id == (device.id | string) %}selected{% endif %}>{{ device.name }}</option>
                     {% endfor %}
@@ -250,9 +252,10 @@
         </div>
 
         <div class="button-group">
-            <button class="btn-main" type="button">更新する</button>
+            <button class="btn-main" type="submit">更新する</button>
             <a href="{{ url_for('user_usage_logs') }}" class="btn-cancel">やめる</a>
         </div>
+        </form>
     </main>
 </div>
 
