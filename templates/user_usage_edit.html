@@ -13,7 +13,6 @@
             --accent-orange: #ff8c42;
             --accent-pink: #f5b7b1;
             --accent-pink-dark: #c47a8a;
-            --accent-blue-dusty: #89b3d9;
             --card-bg: #ffffff;
             --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
@@ -71,7 +70,7 @@
         }
         .header-logo i { color: #e8a0ad; font-size: 1.4rem; }
         .header-logo {
-            color: inherit;
+            display: inline-flex;
             text-decoration: none;
         }
         .header-title {
@@ -85,19 +84,27 @@
 
         main {
             flex-grow: 1;
-            padding: 30px 25px;
+            padding: 25px 25px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 25px;
+            gap: 20px;
+        }
+
+        .new-log-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
         }
 
         .form-group {
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             text-align: left;
         }
 
@@ -106,6 +113,14 @@
             font-weight: bold;
             color: #666;
             padding-left: 5px;
+        }
+
+        .note-text {
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #d63384;
+            padding-left: 5px;
+            line-height: 1.2;
         }
 
         select, input[type="datetime-local"] {
@@ -141,7 +156,7 @@
             color: #2ecc71;
             font-weight: bold;
             font-size: 1rem;
-            margin: 5px 0;
+            margin: 2px 0;
             text-align: center;
         }
         .flash-message.danger {
@@ -156,7 +171,7 @@
         }
 
         .confirm-icon {
-            color: var(--accent-blue-dusty);
+            color: #89b3d9;
             font-size: 3rem;
         }
 
@@ -172,7 +187,7 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 12px;
             align-items: center;
         }
 
@@ -217,15 +232,21 @@
     </header>
 
     <main>
-        <form action="{{ url_for('user_usage_edit', usage_log_id=usage_log_id) }}" method="post">
+        <form action="{{ url_for('user_usage_edit', usage_log_id=usage_log_id) }}" method="post" class="new-log-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
         <div class="form-group">
             <span class="label-text">使った機器</span>
             <div class="select-wrapper">
                 <select name="device_id">
                     <option value="" disabled {% if not form_data.device_id %}selected{% endif %}>選択してください</option>
                     {% for device in devices %}
-                    <option value="{{ device.id }}" {% if form_data.device_id == (device.id | string) %}selected{% endif %}>{{ device.name }}</option>
+                    <option
+                        value="{{ device.id }}"
+                        {% if form_data.device_id == (device.id | string) %}selected{% endif %}
+                    >
+                        {{ device.name }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -238,6 +259,7 @@
 
         <div class="form-group">
             <span class="label-text">運転を停止した日時</span>
+            <span class="note-text">※現在運転中の場合は不要です</span>
             <input type="datetime-local" name="end_time" value="{{ form_data.end_time }}">
         </div>
 
