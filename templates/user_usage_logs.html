@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>いえ電シェア - 機器使用記録一覧</title>
+    <title>いえ電シェア - 使用記録一覧</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -17,6 +17,7 @@
             --card-bg: #ffffff;
             --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
             --flash-green: #2ecc71;
+            --usage-item-time-min-height: calc(2 * 1.4em);
         }
 
         * {
@@ -153,11 +154,50 @@
             align-items: center;
         }
 
-        .item-info { flex-grow: 1; }
-        .item-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
-        .item-name { font-weight: bold; font-size: clamp(1rem, 4.5vw, 1.2rem); }
-        .item-price { font-weight: bold; color: var(--text-color); }
-        .item-time { font-size: 0.85rem; color: #666; line-height: 1.4; }
+        .item-info {
+            flex-grow: 1;
+            min-width: 0;
+        }
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .item-name {
+            font-weight: bold;
+            font-size: clamp(1rem, 4.5vw, 1.2rem);
+        }
+        .item-price {
+            font-weight: bold;
+            color: var(--text-color);
+            transform: translateX(-0.5em);
+        }
+        .usage-list .usage-item .item-time {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: #666;
+            line-height: 1.4;
+            min-height: var(--usage-item-time-min-height);
+        }
+        .item-time-main {
+            flex: 1;
+            min-width: 0;
+        }
+        .badge-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border: none;
+            flex-shrink: 0;
+        }
+        .badge-on { background: #ffebee; color: #c62828; }
 
         .check-icon {
             margin-left: 15px;
@@ -197,7 +237,7 @@
         <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
             <i class="fas fa-home"></i>
         </a>
-        <div class="header-title">機器使用状況</div>
+        <div class="header-title">使用記録一覧</div>
     </header>
 
     <div class="fixed-content">
@@ -240,8 +280,8 @@
                     <span class="item-price">23円</span>
                 </div>
                 <div class="item-time">
-                    ON &nbsp; mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; mm/dd(aaa) hh:mm
+                    <div class="item-time-main">ON &nbsp; mm/dd(aaa) hh:mm</div>
+                    <span class="badge-status badge-on">運転中</span>
                 </div>
             </div>
             <i class="fas fa-check-circle check-icon"></i>
@@ -254,8 +294,8 @@
                     <span class="item-price">80円</span>
                 </div>
                 <div class="item-time">
-                    ON &nbsp; mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; mm/dd(aaa) hh:mm
+                    <div class="item-time-main">ON &nbsp; mm/dd(aaa) hh:mm<br>
+                    OFF &nbsp; mm/dd(aaa) hh:mm</div>
                 </div>
             </div>
             <i class="fas fa-check-circle check-icon"></i>
@@ -268,8 +308,8 @@
                     <span class="item-price">150円</span>
                 </div>
                 <div class="item-time">
-                    ON &nbsp; mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; mm/dd(aaa) hh:mm
+                    <div class="item-time-main">ON &nbsp; mm/dd(aaa) hh:mm<br>
+                    OFF &nbsp; mm/dd(aaa) hh:mm</div>
                 </div>
             </div>
             <i class="fas fa-check-circle check-icon"></i>
