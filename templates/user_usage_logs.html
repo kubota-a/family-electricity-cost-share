@@ -224,6 +224,9 @@
             align-items: center;
             z-index: 100;
         }
+        .modal-overlay.active {
+            display: flex;
+        }
         .modal-content {
             width: 90%;
             background: var(--card-bg);
@@ -457,9 +460,44 @@
     {% endfor %}
 
     <footer>
-        <button class="footer-button" type="button">シェア金額一覧を見る</button>
+        <a class="footer-button" href="{{ url_for('user_share_amounts') }}">シェア金額一覧を見る</a>
     </footer>
 </div>
+
+<script>
+    // チェックアイコン押下で、対象の編集削除モーダルを開く
+    const usageCheckIcons = document.querySelectorAll(".check-icon");
+    usageCheckIcons.forEach(function (usageCheckIcon) {
+        usageCheckIcon.addEventListener("click", function () {
+            const modalId = usageCheckIcon.dataset.modalId;
+            const targetModal = document.getElementById(modalId);
+            if (targetModal) {
+                targetModal.classList.add("active");
+            }
+        });
+    });
+
+    // 「やめる」ボタン押下でモーダルを閉じる
+    const usageCancelButtons = document.querySelectorAll(".modal-overlay .btn-cancel");
+    usageCancelButtons.forEach(function (usageCancelButton) {
+        usageCancelButton.addEventListener("click", function () {
+            const parentModal = usageCancelButton.closest(".modal-overlay");
+            if (parentModal) {
+                parentModal.classList.remove("active");
+            }
+        });
+    });
+
+    // モーダル枠外クリックでモーダルを閉じる
+    const usageActionModals = document.querySelectorAll(".modal-overlay");
+    usageActionModals.forEach(function (usageActionModal) {
+        usageActionModal.addEventListener("click", function (event) {
+            if (event.target === usageActionModal) {
+                usageActionModal.classList.remove("active");
+            }
+        });
+    });
+</script>
 
 </body>
 </html>
