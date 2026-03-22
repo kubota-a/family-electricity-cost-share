@@ -754,7 +754,7 @@ def user_usage_edit(usage_log_id):
 
         try:
             db.session.commit()
-        except Exception:
+        except Exception as e:
             app.logger.exception("user_usage_edit: 記録更新中に例外が発生しました")
             db.session.rollback()
             flash("記録の更新に失敗しました。", "danger")
@@ -831,9 +831,15 @@ def user_usage_delete(usage_log_id):
     if request.method == "POST":
         # 物理削除はせず、削除日時を保存して論理削除する
         target_usage_log.deleted_at = datetime.now(timezone.utc)
-        db.session.commit()
-        flash("記録を削除しました", "success")
-        return redirect(url_for("user_usage_logs"))
+        try:
+            db.session.commit()
+        except Exception as e:
+            app.logger.exception("user_usage_delete: 記録削除中に例外が発生しました")
+            db.session.rollback()
+            flash("記録の削除に失敗しました。", "danger")
+        else:
+            flash("記録を削除しました", "success")
+            return redirect(url_for("user_usage_logs"))
 
     # 一覧画面のモーダルと表示値をそろえるため、削除画面用の表示データを作る
     app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()

@@ -14,6 +14,7 @@
             --accent-pink-dark: #c47a8a;
             --card-bg: #ffffff;
             --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            --flash-green: #2ecc71;
         }
 
         * {
@@ -100,6 +101,15 @@
             display: flex;
             align-items: center;
             border-left: 8px solid #ff9999;
+        }
+        .flash-message {
+            color: var(--flash-green);
+            font-weight: bold;
+            font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+            margin-bottom: 15px;
+        }
+        .flash-message.danger {
+            color: #d9534f;
         }
 
         .record-info {
@@ -203,6 +213,15 @@
     </header>
 
     <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% set category, message = messages[-1] %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% else %}
+        <div class="flash-message"></div>
+        {% endif %}
+        {% endwith %}
+
         <div class="target-record-card">
             <div class="record-info">
                 <div class="record-header">
