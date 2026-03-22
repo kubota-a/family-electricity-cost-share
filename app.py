@@ -474,7 +474,8 @@ def user_usage_new():
         try:
             db.session.add(new_log)
             db.session.commit()
-        except Exception:
+        except Exception as e:
+            app.logger.exception("user_usage_new: 記録保存中に例外が発生しました")
             db.session.rollback()
             flash("記録の保存に失敗しました。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
@@ -650,56 +651,114 @@ def user_usage_edit(usage_log_id):
     if target_usage_log is None:
         return redirect(url_for("user_usage_logs"))
 
-    # 編集画面の更新処理（Step 2: 最低限の入力チェックのみ）
+    def render_edit_with_form(form_data):
+        """入力値を保持して編集画面を再表示する。"""
+        return render_template(
+            "user_usage_edit.html",
+            devices=owned_devices,
+            form_data=form_data,
+            usage_log_id=usage_log_id,
+        )
+
+    # 編集画面の更新処理（Step 3: バリデーション実装）
     if request.method == "POST":
         form_data = {
-            "device_id": request.form.get("device_id", ""),
-            "start_time": request.form.get("start_time", ""),
-            "end_time": request.form.get("end_time", ""),
+            "device_id": request.form.get("device_id", "").strip(),
+            "start_time": request.form.get("start_time", "").strip(),
+            "end_time": request.form.get("end_time", "").strip(),
         }
 
-        # 最低限の必須チェック（詳細バリデーションはStep 3で実装）
-        if not form_data["device_id"] or not form_data["start_time"]:
-            flash("入力内容に不足があります。", "danger")
-            return render_template(
-                "user_usage_edit.html",
-                devices=owned_devices,
-                form_data=form_data,
-                usage_log_id=usage_log_id,
-            )
+        # 必須チェック: 使用機器と開始日時は必須
+        if not form_data["device_id"]:
+            flash("使用機器を選択してください。", "danger")
+            return render_edit_with_form(form_data)
+        if not form_data["start_time"]:
+            flash("運転を開始した日時を入力してください。", "danger")
+            return render_edit_with_form(form_data)
 
         try:
             device_id = int(form_data["device_id"])
-            start_time = parse_datetime_local_as_utc(form_data["start_time"])
-            end_time = (
-                parse_datetime_local_as_utc(form_data["end_time"])
-                if form_data["end_time"]
-                else None
-            )
         except (TypeError, ValueError):
-            flash("入力内容が不正です。", "danger")
-            return render_template(
-                "user_usage_edit.html",
-                devices=owned_devices,
-                form_data=form_data,
-                usage_log_id=usage_log_id,
-            )
+            flash("使用機器の指定が不正です。", "danger")
+            return render_edit_with_form(form_data)
 
-        target_usage_log.device_id = device_id
+        # 所有権チェック: 自分の所有機器のみ選択可能
+        target_device = (
+            Device.query
+            .filter(
+                Device.id == device_id,
+                Device.user_id == current_user.id,
+            )
+            .first()
+        )
+        if target_device is None:
+            flash("選択した機器が見つかりません。", "danger")
+            return render_edit_with_form(form_data)
+
+        # datetime-local形式チェック（YYYY-MM-DDTHH:MM）
+        try:
+            start_time = parse_datetime_local_as_utc(form_data["start_time"])
+        except ValueError:
+            flash("運転開始日時の形式が不正です。", "danger")
+            return render_edit_with_form(form_data)
+
+        if form_data["end_time"]:
+            try:
+                end_time = parse_datetime_local_as_utc(form_data["end_time"])
+            except ValueError:
+                flash("運転停止日時の形式が不正です。", "danger")
+                return render_edit_with_form(form_data)
+        else:
+            end_time = None
+
+        # 開始日時の確定済み期間チェック（未確定期間以降のみ編集可）
+        if unfinalized_start_utc is not None and start_time < unfinalized_start_utc:
+            flash("確定済み期間の記録は編集できません。", "danger")
+            return render_edit_with_form(form_data)
+
+        # 未来日時チェック（開始・停止ともに未来は不可）
+        now_utc = datetime.now(timezone.utc)
+        if start_time > now_utc:
+            flash("運転開始日時に未来の日時は指定できません。", "danger")
+            return render_edit_with_form(form_data)
+        if end_time is not None and end_time > now_utc:
+            flash("運転停止日時に未来の日時は指定できません。", "danger")
+            return render_edit_with_form(form_data)
+
+        # 停止日時入力時のみ、開始 < 停止 を確認する
+        if end_time is not None and start_time >= end_time:
+            flash("運転停止日時は運転開始日時より後を指定してください。", "danger")
+            return render_edit_with_form(form_data)
+
+        # 未終了記録の重複チェック（自分自身は除外）
+        if end_time is None:
+            has_running_log = (
+                DeviceUsageLog.query
+                .join(Device, DeviceUsageLog.device_id == Device.id)
+                .filter(
+                    Device.user_id == current_user.id,
+                    DeviceUsageLog.deleted_at.is_(None),
+                    DeviceUsageLog.end_time.is_(None),
+                    DeviceUsageLog.id != target_usage_log.id,
+                )
+                .first()
+                is not None
+            )
+            if has_running_log:
+                flash("現在運転中の機器があるため、停止日時なしでは更新できません。", "danger")
+                return render_edit_with_form(form_data)
+
+        target_usage_log.device_id = target_device.id
         target_usage_log.start_time = start_time
         target_usage_log.end_time = end_time
 
         try:
             db.session.commit()
-        except Exception:
+        except Exception as e:
+            app.logger.exception("user_usage_edit: 記録更新中に例外が発生しました")
             db.session.rollback()
             flash("記録の更新に失敗しました。", "danger")
-            return render_template(
-                "user_usage_edit.html",
-                devices=owned_devices,
-                form_data=form_data,
-                usage_log_id=usage_log_id,
-            )
+            return render_edit_with_form(form_data)
 
         flash("記録を更新しました", "success")
         return redirect(url_for("user_usage_logs"))
