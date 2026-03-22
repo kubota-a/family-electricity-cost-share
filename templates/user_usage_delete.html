@@ -182,6 +182,8 @@
             font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
+            text-decoration: none;
+            text-align: center;
         }
     </style>
 </head>
@@ -199,12 +201,18 @@
         <div class="target-record-card">
             <div class="record-info">
                 <div class="record-header">
-                    <span class="record-name">暖房</span>
-                    <span class="record-price">80円</span>
+                    <span class="record-name">{{ usage_log.device_name }}</span>
+                    {% if usage_log.estimated_cost_yen is not none %}
+                    <span class="record-price">{{ usage_log.estimated_cost_yen }}円（目安）</span>
+                    {% endif %}
                 </div>
                 <div class="record-time">
-                    ON &nbsp; yyyy/mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; yyyy/mm/dd(aaa) hh:mm
+                    ON &nbsp; {{ usage_log.start_time_display }}
+                    {% if usage_log.end_time_display %}
+                    <br>OFF &nbsp; {{ usage_log.end_time_display }}
+                    {% else %}
+                    <br>運転中
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -216,7 +224,7 @@
 
         <div class="button-group">
             <button class="btn-delete" type="button">削除する</button>
-            <button class="btn-cancel" type="button">やめる</button>
+            <a class="btn-cancel" href="{{ url_for('user_usage_logs') }}">やめる</a>
         </div>
     </main>
 </div>
