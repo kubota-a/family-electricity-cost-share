@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>いえ電シェア - 機器使用記録一覧</title>
+    <title>いえ電シェア - 使用記録一覧</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -17,6 +17,7 @@
             --card-bg: #ffffff;
             --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
             --flash-green: #2ecc71;
+            --usage-item-time-min-height: calc(2 * 1.4em);
         }
 
         * {
@@ -141,6 +142,12 @@
             overflow-y: auto;
             padding: 10px 20px 100px;
         }
+        .empty-message {
+            text-align: center;
+            color: #666;
+            font-weight: bold;
+            margin-top: 20px;
+        }
 
         .usage-item {
             background: var(--card-bg);
@@ -153,16 +160,158 @@
             align-items: center;
         }
 
-        .item-info { flex-grow: 1; }
-        .item-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
-        .item-name { font-weight: bold; font-size: clamp(1rem, 4.5vw, 1.2rem); }
-        .item-price { font-weight: bold; color: var(--text-color); }
-        .item-time { font-size: 0.85rem; color: #666; line-height: 1.4; }
+        .item-info {
+            flex-grow: 1;
+            min-width: 0;
+        }
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .item-name {
+            font-weight: bold;
+            font-size: clamp(1rem, 4.5vw, 1.2rem);
+        }
+        .item-price {
+            font-weight: bold;
+            color: var(--text-color);
+            transform: translateX(-0.5em);
+        }
+        .usage-list .usage-item .item-time {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: #666;
+            line-height: 1.4;
+            min-height: var(--usage-item-time-min-height);
+        }
+        .item-time-main {
+            flex: 1;
+            min-width: 0;
+        }
+        .badge-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border: none;
+            flex-shrink: 0;
+        }
+        .badge-on { background: #ffebee; color: #c62828; }
 
         .check-icon {
             margin-left: 15px;
             color: var(--check-blue);
             font-size: 2.2rem;
+        }
+
+        /* 編集削除選択モーダル（Step 1: テンプレート化のみ） */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            width: 90%;
+            background: var(--card-bg);
+            border-radius: 30px;
+            padding: 30px 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        .target-record-card {
+            background: #fff;
+            width: 100%;
+            padding: 15px;
+            border-radius: 18px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            display: flex;
+            align-items: center;
+            border-left: 8px solid #ff9999;
+            text-align: left;
+        }
+        .record-info {
+            flex-grow: 1;
+        }
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .record-name, .record-price {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+        .record-time {
+            font-size: 0.85rem;
+            color: #666;
+            line-height: 1.5;
+        }
+        .confirm-message {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            width: 100%;
+        }
+        .action-btn {
+            background: #fff;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-color);
+        }
+        .action-btn i {
+            font-size: 2rem;
+        }
+        .icon-delete { color: var(--accent-pink-dark); }
+        .icon-edit { color: #89b3d9; }
+        .action-btn span {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .btn-cancel {
+            width: 100%;
+            max-width: 150px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #999;
+            background: #f8f8f8;
+            color: #666;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
         }
 
         footer {
@@ -197,13 +346,19 @@
         <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
             <i class="fas fa-home"></i>
         </a>
-        <div class="header-title">機器使用状況</div>
+        <div class="header-title">使用記録一覧</div>
     </header>
 
     <div class="fixed-content">
         <div class="summary-card">
-            <div class="summary-title">2025/11/20以降の<br>機器使用料(目安)</div>
-            <div class="summary-amount">合計〇〇〇〇〇円</div>
+            <div class="summary-title">
+                {% if unfinalized_start_display == "初回利用記録" %}
+                初回利用記録<br>機器使用料(目安)
+                {% else %}
+                {{ unfinalized_start_display }}以降の<br>機器使用料(目安)
+                {% endif %}
+            </div>
+            <div class="summary-amount">合計{{ summary_total_yen }}円</div>
         </div>
         <p class="note">※使用料は仮単価で算出した目安です。<br>請求額確定後に再計算されます。</p>
 
@@ -223,63 +378,126 @@
     </div>
 
     <div class="filter-section">
-        <select class="device-select">
-            <option value="all">すべての機器</option>
-            <option value="heater">暖房</option>
-            <option value="stove-weak">ストーブ弱</option>
-            <option value="stove-strong">ストーブ強</option>
-            <option value="cooling">冷房</option>
-        </select>
+        <form method="get">
+            <select class="device-select" name="device_id" onchange="this.form.submit()">
+                <option value="">すべての機器</option>
+                {% for device in owned_devices %}
+                <option value="{{ device.id }}" {% if selected_device_id == device.id %}selected{% endif %}>{{ device.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
     </div>
 
     <main class="usage-list">
+        {% if usage_logs %}
+        {% for usage_log in usage_logs %}
         <div class="usage-item">
             <div class="item-info">
                 <div class="item-header">
-                    <span class="item-name">ストーブ弱</span>
-                    <span class="item-price">23円</span>
+                    <span class="item-name">{{ usage_log.device_name }}</span>
+                    {% if usage_log.estimated_cost_yen is not none %}
+                    <span class="item-price">{{ usage_log.estimated_cost_yen }}円</span>
+                    {% endif %}
                 </div>
                 <div class="item-time">
-                    ON &nbsp; mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; mm/dd(aaa) hh:mm
+                    <div class="item-time-main">
+                        ON &nbsp; {{ usage_log.start_time_display }}
+                        {% if usage_log.end_time_display %}
+                        <br>OFF &nbsp; {{ usage_log.end_time_display }}
+                        {% endif %}
+                    </div>
+                    {% if usage_log.end_time_display is none %}
+                    <span class="badge-status badge-on">運転中</span>
+                    {% endif %}
                 </div>
             </div>
-            <i class="fas fa-check-circle check-icon"></i>
+            <i class="fas fa-check-circle check-icon" data-modal-id="usageActionModal-{{ usage_log.id }}"></i>
         </div>
-
-        <div class="usage-item">
-            <div class="item-info">
-                <div class="item-header">
-                    <span class="item-name">暖房</span>
-                    <span class="item-price">80円</span>
-                </div>
-                <div class="item-time">
-                    ON &nbsp; mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; mm/dd(aaa) hh:mm
-                </div>
-            </div>
-            <i class="fas fa-check-circle check-icon"></i>
-        </div>
-
-        <div class="usage-item">
-            <div class="item-info">
-                <div class="item-header">
-                    <span class="item-name">暖房</span>
-                    <span class="item-price">150円</span>
-                </div>
-                <div class="item-time">
-                    ON &nbsp; mm/dd(aaa) hh:mm<br>
-                    OFF &nbsp; mm/dd(aaa) hh:mm
-                </div>
-            </div>
-            <i class="fas fa-check-circle check-icon"></i>
-        </div>
+        {% endfor %}
+        {% else %}
+        <p class="empty-message">表示できる使用記録はありません</p>
+        {% endif %}
     </main>
 
+    {% for usage_log in usage_logs %}
+    <div class="modal-overlay" id="usageActionModal-{{ usage_log.id }}">
+        <div class="modal-content">
+            <div class="target-record-card">
+                <div class="record-info">
+                    <div class="record-header">
+                        <span class="record-name">{{ usage_log.device_name }}</span>
+                        {% if usage_log.estimated_cost_yen is not none %}
+                        <span class="record-price">{{ usage_log.estimated_cost_yen }}円（目安）</span>
+                        {% endif %}
+                    </div>
+                    <div class="record-time">
+                        ON &nbsp; {{ usage_log.start_time_display }}
+                        {% if usage_log.end_time_display %}
+                        <br>OFF &nbsp; {{ usage_log.end_time_display }}
+                        {% else %}
+                        <br>運転中
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <p class="confirm-message">この記録をどうしますか？</p>
+
+            <div class="action-grid">
+                <a class="action-btn" href="{{ url_for('user_usage_delete', usage_log_id=usage_log.id) }}">
+                    <i class="fas fa-trash-can icon-delete"></i>
+                    <span>削除</span>
+                </a>
+                <a class="action-btn" href="{{ url_for('user_usage_edit', usage_log_id=usage_log.id) }}">
+                    <i class="fas fa-pen-to-square icon-edit"></i>
+                    <span>編集</span>
+                </a>
+            </div>
+
+            <button class="btn-cancel" type="button">やめる</button>
+        </div>
+    </div>
+    {% endfor %}
+
     <footer>
-        <button class="footer-button" type="button">シェア金額一覧を見る</button>
+        <a class="footer-button" href="{{ url_for('user_share_amounts') }}">シェア金額一覧を見る</a>
     </footer>
 </div>
+
+<script>
+    // チェックアイコン押下で、対象の編集削除モーダルを開く
+    const usageCheckIcons = document.querySelectorAll(".check-icon");
+    usageCheckIcons.forEach(function (usageCheckIcon) {
+        usageCheckIcon.addEventListener("click", function () {
+            const modalId = usageCheckIcon.dataset.modalId;
+            const targetModal = document.getElementById(modalId);
+            if (targetModal) {
+                targetModal.classList.add("active");
+            }
+        });
+    });
+
+    // 「やめる」ボタン押下でモーダルを閉じる
+    const usageCancelButtons = document.querySelectorAll(".modal-overlay .btn-cancel");
+    usageCancelButtons.forEach(function (usageCancelButton) {
+        usageCancelButton.addEventListener("click", function () {
+            const parentModal = usageCancelButton.closest(".modal-overlay");
+            if (parentModal) {
+                parentModal.classList.remove("active");
+            }
+        });
+    });
+
+    // モーダル枠外クリックでモーダルを閉じる
+    const usageActionModals = document.querySelectorAll(".modal-overlay");
+    usageActionModals.forEach(function (usageActionModal) {
+        usageActionModal.addEventListener("click", function (event) {
+            if (event.target === usageActionModal) {
+                usageActionModal.classList.remove("active");
+            }
+        });
+    });
+</script>
 
 </body>
 </html>

@@ -5,13 +5,13 @@ from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
-from decimal import Decimal, InvalidOperation
-from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import joinedload
 from zoneinfo import ZoneInfo
 import os
 
-from models import db, AppSettings, Device, DeviceUsageLog, FinalizedBillMember, User
+from models import db, AppSettings, Device, DeviceUsageLog, FinalizedBill, FinalizedBillMember, User
 
 
 # .env から環境変数を読み込む
@@ -91,6 +91,7 @@ DEVICE_THEME_COLOR_MAP = {
 
 # 手動入力(datetime-local)は日本時間として解釈する
 TOKYO_TIMEZONE = ZoneInfo("Asia/Tokyo")
+WEEKDAY_LABELS_JA = ["月", "火", "水", "木", "金", "土", "日"]
 
 
 @login_manager.user_loader
@@ -131,6 +132,34 @@ def parse_datetime_local_as_utc(value):
     naive_dt = datetime.fromisoformat(value)
     tokyo_aware_dt = naive_dt.replace(tzinfo=TOKYO_TIMEZONE)
     return tokyo_aware_dt.astimezone(timezone.utc)
+
+
+def ensure_utc_aware(dt_value):
+    """UTC aware datetimeとして扱える形に補正する。"""
+    if dt_value.tzinfo is None:
+        return dt_value.replace(tzinfo=timezone.utc)
+    return dt_value.astimezone(timezone.utc)
+
+
+def format_datetime_for_jst_display(dt_value):
+    """UTC日時を日本時間へ変換し、画面表示用文字列に整形する。"""
+    utc_aware_dt = ensure_utc_aware(dt_value)
+    tokyo_dt = utc_aware_dt.astimezone(TOKYO_TIMEZONE)
+    weekday_label = WEEKDAY_LABELS_JA[tokyo_dt.weekday()]
+    return tokyo_dt.strftime(f"%Y/%m/%d({weekday_label}) %H:%M")
+
+
+def calculate_estimated_cost_yen(usage_log, estimated_unit_price):
+    """終了済み記録の概算料金(円)を四捨五入した整数で返す。"""
+    if usage_log.end_time is None or estimated_unit_price is None:
+        return None
+
+    start_time_utc = ensure_utc_aware(usage_log.start_time)
+    end_time_utc = ensure_utc_aware(usage_log.end_time)
+    usage_seconds = Decimal(str((end_time_utc - start_time_utc).total_seconds()))
+    usage_hours = usage_seconds / Decimal("3600")
+    estimated_cost = Decimal(str(usage_log.device.power_kw)) * usage_hours * estimated_unit_price
+    return int(estimated_cost.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 @app.route("/")
@@ -458,12 +487,143 @@ def user_usage_new():
 @app.route("/user/usage/logs", methods=["GET"])
 @login_required
 def user_usage_logs():
-    """一般ユーザー用の記録一覧画面（Step 1 の最小実装）を表示する。"""
+    """一般ユーザー用の記録一覧画面を表示する。"""
     # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    return render_template("user_usage_logs.html")
+    # 機器絞り込みの選択肢として、ログイン中ユーザーの所有機器を取得する
+    owned_devices = (
+        Device.query
+        .filter(Device.user_id == current_user.id)
+        .order_by(Device.id.asc())
+        .all()
+    )
+    owned_device_ids = {device.id for device in owned_devices}
+
+    # GETパラメータ device_id が自分の所有機器なら絞り込みに使う
+    selected_device_id = None
+    selected_device_id_raw = request.args.get("device_id", "").strip()
+    if selected_device_id_raw:
+        try:
+            candidate_device_id = int(selected_device_id_raw)
+        except ValueError:
+            candidate_device_id = None
+        if candidate_device_id in owned_device_ids:
+            selected_device_id = candidate_device_id
+
+    # 最新の確定済み期間終了日時を取得し、未確定期間の開始日時を決める
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+
+    if latest_finalized_bill is not None:
+        latest_period_end = ensure_utc_aware(latest_finalized_bill.period_end)
+        latest_period_end_in_tokyo = latest_period_end.astimezone(TOKYO_TIMEZONE)
+        unfinalized_start_tokyo = (
+            latest_period_end_in_tokyo
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_utc = unfinalized_start_tokyo.astimezone(timezone.utc)
+        unfinalized_start_display = unfinalized_start_tokyo.strftime("%Y/%m/%d")
+    else:
+        unfinalized_start_utc = None
+        unfinalized_start_display = "初回利用記録"
+
+    # ログイン中ユーザーの所有機器に紐づく、未削除の使用記録だけを取得する
+    usage_logs_query = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .options(joinedload(DeviceUsageLog.device))
+        .filter(
+            Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
+        )
+    )
+
+    # 確定済み期間がある場合は、未確定期間の開始日時以降だけを表示する
+    if unfinalized_start_utc is not None:
+        usage_logs_query = usage_logs_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+    if selected_device_id is not None:
+        usage_logs_query = usage_logs_query.filter(DeviceUsageLog.device_id == selected_device_id)
+
+    raw_usage_logs = (
+        usage_logs_query
+        .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
+        .all()
+    )
+
+    # 一覧・モーダルで同じ表示値を使えるよう、表示用データを作る
+    app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
+    estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
+
+    usage_logs = []
+    for usage_log in raw_usage_logs:
+        usage_logs.append(
+            {
+                "id": usage_log.id,
+                "device_name": usage_log.device.name,
+                "start_time_display": format_datetime_for_jst_display(usage_log.start_time),
+                "end_time_display": (
+                    format_datetime_for_jst_display(usage_log.end_time)
+                    if usage_log.end_time is not None
+                    else None
+                ),
+                "estimated_cost_yen": calculate_estimated_cost_yen(usage_log, estimated_unit_price),
+            }
+        )
+
+    # 一覧表示対象のうち、終了済み記録の概算料金だけを合計する
+    summary_total_yen = sum(
+        usage_log["estimated_cost_yen"]
+        for usage_log in usage_logs
+        if usage_log["estimated_cost_yen"] is not None
+    )
+
+    return render_template(
+        "user_usage_logs.html",
+        owned_devices=owned_devices,
+        selected_device_id=selected_device_id,
+        usage_logs=usage_logs,
+        unfinalized_start_display=unfinalized_start_display,
+        summary_total_yen=summary_total_yen,
+    )
+
+
+@app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET"])
+@login_required
+def user_usage_edit(usage_log_id):
+    """一般ユーザー用の記録編集画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    return render_template("user_usage_edit.html", usage_log_id=usage_log_id)
+
+
+@app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET"])
+@login_required
+def user_usage_delete(usage_log_id):
+    """一般ユーザー用の記録削除画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    return render_template("user_usage_delete.html", usage_log_id=usage_log_id)
+
+
+@app.route("/user/share-amounts", methods=["GET"])
+@login_required
+def user_share_amounts():
+    """一般ユーザー用のシェア金額一覧画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    return render_template("user_share_amounts.html")
 
 
 @app.route("/admin/top")

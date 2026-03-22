@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア - 記録を削除する</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #fff0f3;
+            --header-bg: #ffffff;
+            --text-color: #4a4a4a;
+            --accent-pink: #f5b7b1;
+            --accent-pink-dark: #c47a8a;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .phone-container {
+            width: 100%;
+            max-width: 430px;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (min-width: 431px) {
+            body {
+                padding: 20px;
+                align-items: center;
+                height: 100vh;
+                overflow: hidden;
+            }
+            .phone-container {
+                width: min(390px, 100%);
+                min-height: auto;
+                aspect-ratio: 9 / 19.5;
+                border-radius: 40px;
+                border: 8px solid #222;
+                box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+                overflow: hidden;
+            }
+        }
+
+        header {
+            background-color: var(--header-bg);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        .header-logo i { color: var(--accent-pink); font-size: 1.4rem; }
+        .header-logo {
+            color: inherit;
+            text-decoration: none;
+        }
+        .header-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            color: var(--text-color);
+            font-size: clamp(0.9rem, 4vw, 1.1rem);
+        }
+
+        main {
+            flex-grow: 1;
+            padding: 40px 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+        }
+
+        .target-record-card {
+            background: var(--card-bg);
+            width: 100%;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            border-left: 8px solid #ff9999;
+        }
+
+        .record-info {
+            flex-grow: 1;
+            text-align: left;
+        }
+
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .record-name {
+            font-size: clamp(1.2rem, 5vw, 1.4rem);
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .record-price {
+            font-size: clamp(1.2rem, 5vw, 1.4rem);
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .record-time {
+            font-size: clamp(0.85rem, 3.8vw, 0.95rem);
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .confirm-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .delete-icon {
+            color: var(--accent-pink-dark);
+            font-size: 3rem;
+        }
+
+        .confirm-text {
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            font-weight: bold;
+            color: var(--text-color);
+            text-align: left;
+        }
+
+        .button-group {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .btn-delete {
+            width: 100%;
+            max-width: 220px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 3px solid #666;
+            background: #fff;
+            color: var(--text-color);
+            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            width: 100%;
+            max-width: 160px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #999;
+            background: #f8f8f8;
+            color: #666;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <header>
+        <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
+            <i class="fas fa-home"></i>
+        </a>
+        <div class="header-title">記録を削除する</div>
+    </header>
+
+    <main>
+        <div class="target-record-card">
+            <div class="record-info">
+                <div class="record-header">
+                    <span class="record-name">暖房</span>
+                    <span class="record-price">80円</span>
+                </div>
+                <div class="record-time">
+                    ON &nbsp; yyyy/mm/dd(aaa) hh:mm<br>
+                    OFF &nbsp; yyyy/mm/dd(aaa) hh:mm
+                </div>
+            </div>
+        </div>
+
+        <div class="confirm-area">
+            <i class="fas fa-trash-alt delete-icon"></i>
+            <p class="confirm-text">この記録を<br>削除しますか？</p>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-delete" type="button">削除する</button>
+            <button class="btn-cancel" type="button">やめる</button>
+        </div>
+    </main>
+</div>
+
+</body>
+</html>
