@@ -781,7 +781,7 @@ def user_usage_edit(usage_log_id):
     )
 
 
-@app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET"])
+@app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET", "POST"])
 @login_required
 def user_usage_delete(usage_log_id):
     """一般ユーザー用の記録削除画面を表示する。"""
@@ -807,21 +807,32 @@ def user_usage_delete(usage_log_id):
     else:
         unfinalized_start_utc = None
 
-    # 削除対象は「自分の機器」「未削除」「未確定期間の開始以降」の記録のみ許可する
-    usage_log_query = (
-        DeviceUsageLog.query
-        .join(Device, DeviceUsageLog.device_id == Device.id)
-        .options(joinedload(DeviceUsageLog.device))
-        .filter(
-            DeviceUsageLog.id == usage_log_id,
-            Device.user_id == current_user.id,
-            DeviceUsageLog.deleted_at.is_(None),
+    # GET/POSTで同じ条件を使うため、対象レコード取得処理を共通化する
+    def find_target_usage_log():
+        usage_log_query = (
+            DeviceUsageLog.query
+            .join(Device, DeviceUsageLog.device_id == Device.id)
+            .options(joinedload(DeviceUsageLog.device))
+            .filter(
+                DeviceUsageLog.id == usage_log_id,
+                Device.user_id == current_user.id,
+                DeviceUsageLog.deleted_at.is_(None),
+            )
         )
-    )
-    if unfinalized_start_utc is not None:
-        usage_log_query = usage_log_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
-    target_usage_log = usage_log_query.first()
+        if unfinalized_start_utc is not None:
+            usage_log_query = usage_log_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+        return usage_log_query.first()
+
+    # 削除対象は「自分の機器」「未削除」「未確定期間の開始以降」の記録のみ許可する
+    target_usage_log = find_target_usage_log()
     if target_usage_log is None:
+        return redirect(url_for("user_usage_logs"))
+
+    if request.method == "POST":
+        # 物理削除はせず、削除日時を保存して論理削除する
+        target_usage_log.deleted_at = datetime.now(timezone.utc)
+        db.session.commit()
+        flash("記録を削除しました", "success")
         return redirect(url_for("user_usage_logs"))
 
     # 一覧画面のモーダルと表示値をそろえるため、削除画面用の表示データを作る

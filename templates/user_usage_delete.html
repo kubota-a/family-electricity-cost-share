@@ -170,6 +170,11 @@
             font-weight: bold;
             cursor: pointer;
         }
+        .delete-form {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
 
         .btn-cancel {
             width: 100%;
@@ -223,7 +228,10 @@
         </div>
 
         <div class="button-group">
-            <button class="btn-delete" type="button">削除する</button>
+            <form class="delete-form" action="{{ url_for('user_usage_delete', usage_log_id=usage_log.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn-delete" type="submit">削除する</button>
+            </form>
             <a class="btn-cancel" href="{{ url_for('user_usage_logs') }}">やめる</a>
         </div>
     </main>
