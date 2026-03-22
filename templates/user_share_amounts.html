@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア - シェア金額一覧</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #fff0f3;
+            --header-bg: #ffffff;
+            --text-color: #4a4a4a;
+            --accent-pink: #f5b7b1;
+            --accent-pink-dark: #c47a8a;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            --shadow-light: 0 2px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .phone-container {
+            width: 100%;
+            max-width: 430px;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (min-width: 431px) {
+            body {
+                padding: 20px;
+                align-items: center;
+                height: 100vh;
+                overflow: hidden;
+            }
+            .phone-container {
+                width: min(390px, 100%);
+                min-height: auto;
+                aspect-ratio: 9 / 19.5;
+                border-radius: 40px;
+                border: 8px solid #222;
+                box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+                overflow: hidden;
+            }
+        }
+
+        header {
+            background-color: var(--header-bg);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: relative;
+            z-index: 10;
+        }
+        .header-logo i { color: var(--accent-pink); font-size: 1.4rem; }
+        .header-logo {
+            color: inherit;
+            text-decoration: none;
+        }
+        .header-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            color: var(--text-color);
+            font-size: clamp(0.9rem, 4vw, 1.1rem);
+        }
+
+        .intro-section {
+            padding: 20px 20px 0;
+        }
+
+        .info-card {
+            background: var(--card-bg);
+            border: none;
+            border-radius: 0;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-light);
+        }
+
+        .info-card i {
+            color: #ffd700;
+            font-size: 1.8rem;
+            flex-shrink: 0;
+        }
+
+        .info-text {
+            font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+            color: var(--text-color);
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        .sub-instruction {
+            text-align: center;
+            font-size: clamp(0.85rem, 3.8vw, 0.95rem);
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .latest-label {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            color: var(--accent-pink-dark);
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .latest-card {
+            background: #fff9fa;
+            border: 3px solid var(--accent-pink);
+            border-radius: 20px;
+            padding: 20px;
+            margin: 0 20px 15px;
+            box-shadow: 0 6px 15px rgba(245, 183, 177, 0.4);
+            position: relative;
+        }
+
+        .history-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px 20px 100px;
+        }
+
+        .history-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-light);
+            border: 1px solid #eee;
+            opacity: 0.9;
+        }
+
+        .card-date {
+            font-size: clamp(0.9rem, 4vw, 1.05rem);
+            font-weight: bold;
+            margin-bottom: 6px;
+            display: block;
+            color: var(--text-color);
+        }
+        .card-amount {
+            font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+            color: #777;
+        }
+
+        footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: var(--bg-color);
+            padding: 15px 20px 30px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .footer-button {
+            width: 100%;
+            max-width: 350px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 3px solid #666;
+            background: #fff;
+            color: var(--text-color);
+            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-block;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <header>
+        <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
+            <i class="fas fa-home"></i>
+        </a>
+        <div class="header-title">シェア金額一覧</div>
+    </header>
+
+    <div class="intro-section">
+        <div class="info-card">
+            <i class="fas fa-lightbulb"></i>
+            <div class="info-text">
+                あなたの機器使用記録をふまええた、<br>
+                確定済み電気料金の<br>
+                シェア金額の一覧です。
+            </div>
+        </div>
+
+        <p class="sub-instruction">詳細が見たい履歴を選んでください</p>
+
+        <div class="latest-label">
+            <i class="fas fa-star"></i> 最新の記録
+        </div>
+        <div class="latest-card">
+            <span class="card-date">2025/10/22～2025/11/19利用分</span>
+            <span class="card-amount">シェア金額： ○○○○円</span>
+        </div>
+    </div>
+
+    <main class="history-list">
+        <div class="history-card">
+            <span class="card-date">2025/09/20～2025/10/21利用分</span>
+            <span class="card-amount">シェア金額： ○○○○円</span>
+        </div>
+
+        <div class="history-card">
+            <span class="card-date">2025/08/21～2025/09/19利用分</span>
+            <span class="card-amount">シェア金額： ○○○○円</span>
+        </div>
+
+        <div class="history-card">
+            <span class="card-date">2025/07/21～2025/08/20利用分</span>
+            <span class="card-amount">シェア金額： ○○○○円</span>
+        </div>
+    </main>
+
+    <footer>
+        <button class="footer-button" type="button">使用記録一覧に戻る</button>
+    </footer>
+</div>
+
+</body>
+</html>

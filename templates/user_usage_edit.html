@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア - 記録を編集する</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #fff0f3;
+            --header-bg: #ffffff;
+            --text-color: #4a4a4a;
+            --accent-orange: #ff8c42;
+            --accent-pink: #f5b7b1;
+            --accent-pink-dark: #c47a8a;
+            --accent-blue-dusty: #89b3d9;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .phone-container {
+            width: 100%;
+            max-width: 430px;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (min-width: 431px) {
+            body {
+                padding: 20px;
+                align-items: center;
+                height: 100vh;
+                overflow: hidden;
+            }
+            .phone-container {
+                width: min(390px, 100%);
+                min-height: auto;
+                aspect-ratio: 9 / 19.5;
+                border-radius: 40px;
+                border: 8px solid #333;
+                box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+                overflow: hidden;
+            }
+        }
+
+        header {
+            background-color: var(--header-bg);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        .header-logo i { color: #e8a0ad; font-size: 1.4rem; }
+        .header-logo {
+            color: inherit;
+            text-decoration: none;
+        }
+        .header-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            color: var(--accent-pink-dark);
+            font-size: clamp(0.9rem, 4vw, 1.1rem);
+        }
+
+        main {
+            flex-grow: 1;
+            padding: 30px 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 25px;
+        }
+
+        .form-group {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            text-align: left;
+        }
+
+        .label-text {
+            font-size: clamp(1.1rem, 5vw, 1.3rem);
+            font-weight: bold;
+            color: #666;
+            padding-left: 5px;
+        }
+
+        select, input[type="datetime-local"] {
+            width: 100%;
+            padding: 15px 18px;
+            border-radius: 18px;
+            border: 1.5px solid #ddd;
+            background: var(--card-bg);
+            font-size: clamp(1.1rem, 5vw, 1.3rem);
+            color: var(--text-color);
+            box-shadow: var(--shadow);
+            appearance: none;
+        }
+
+        .select-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        .select-wrapper::after {
+            content: '\f0d7';
+            font-family: 'Font Awesome 5 Free';
+            font-weight: 900;
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #aaa;
+            pointer-events: none;
+            font-size: 1.2rem;
+        }
+
+        .flash-message {
+            color: #2ecc71;
+            font-weight: bold;
+            font-size: 1rem;
+            margin: 5px 0;
+            text-align: center;
+        }
+
+        .confirm-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 5px 0;
+        }
+
+        .confirm-icon {
+            color: var(--accent-blue-dusty);
+            font-size: 3rem;
+        }
+
+        .confirm-text {
+            font-size: clamp(1.2rem, 5.5vw, 1.4rem);
+            font-weight: bold;
+            color: var(--text-color);
+            text-align: left;
+            line-height: 1.4;
+        }
+
+        .button-group {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn-main {
+            width: 100%;
+            max-width: 240px;
+            padding: 14px;
+            border-radius: 12px;
+            border: 3px solid #666;
+            background: #fff;
+            color: var(--text-color);
+            font-size: clamp(1.1rem, 5vw, 1.3rem);
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            width: 100%;
+            max-width: 170px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #999;
+            background: #f8f8f8;
+            color: #666;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <header>
+        <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
+            <i class="fas fa-home"></i>
+        </a>
+        <div class="header-title">記録を編集する</div>
+    </header>
+
+    <main>
+        <div class="form-group">
+            <span class="label-text">使った機器</span>
+            <div class="select-wrapper">
+                <select>
+                    <option value="" disabled selected>選択してください</option>
+                    <option value="heating">暖房</option>
+                    <option value="stove-weak">ストーブ弱</option>
+                    <option value="stove-strong">ストーブ強</option>
+                    <option value="cooling">冷房</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <span class="label-text">運転を開始した日時</span>
+            <input type="datetime-local">
+        </div>
+
+        <div class="form-group">
+            <span class="label-text">運転を停止した日時</span>
+            <input type="datetime-local">
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-message">{{ messages[-1] }}</div>
+        {% else %}
+        <div class="flash-message">ここに各flashメッセージを表示</div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="confirm-area">
+            <i class="fas fa-pen-to-square confirm-icon"></i>
+            <p class="confirm-text">この内容で<br>更新しますか？</p>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-main" type="button">更新する</button>
+            <button class="btn-cancel" type="button">やめる</button>
+        </div>
+    </main>
+</div>
+
+</body>
+</html>

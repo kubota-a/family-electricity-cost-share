@@ -205,6 +205,106 @@
             font-size: 2.2rem;
         }
 
+        /* 編集削除選択モーダル（Step 1: テンプレート化のみ） */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            width: 90%;
+            background: var(--card-bg);
+            border-radius: 30px;
+            padding: 30px 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        .target-record-card {
+            background: #fff;
+            width: 100%;
+            padding: 15px;
+            border-radius: 18px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            display: flex;
+            align-items: center;
+            border-left: 8px solid #ff9999;
+            text-align: left;
+        }
+        .record-info {
+            flex-grow: 1;
+        }
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .record-name, .record-price {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+        .record-time {
+            font-size: 0.85rem;
+            color: #666;
+            line-height: 1.5;
+        }
+        .confirm-message {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            width: 100%;
+        }
+        .action-btn {
+            background: #fff;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-color);
+        }
+        .action-btn i {
+            font-size: 2rem;
+        }
+        .icon-delete { color: var(--accent-pink-dark); }
+        .icon-edit { color: #89b3d9; }
+        .action-btn span {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .btn-cancel {
+            width: 100%;
+            max-width: 150px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #999;
+            background: #f8f8f8;
+            color: #666;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
         footer {
             position: absolute;
             bottom: 0;
@@ -315,6 +415,38 @@
             <i class="fas fa-check-circle check-icon"></i>
         </div>
     </main>
+
+    <div class="modal-overlay" id="usageActionModal">
+        <div class="modal-content">
+            <div class="target-record-card">
+                <div class="record-info">
+                    <div class="record-header">
+                        <span class="record-name">暖房</span>
+                        <span class="record-price">80円（目安）</span>
+                    </div>
+                    <div class="record-time">
+                        ON &nbsp; yyyy/mm/dd(aaa) hh:mm<br>
+                        OFF &nbsp; yyyy/mm/dd(aaa) hh:mm
+                    </div>
+                </div>
+            </div>
+
+            <p class="confirm-message">この記録をどうしますか？</p>
+
+            <div class="action-grid">
+                <a class="action-btn" href="{{ url_for('user_usage_delete', usage_log_id=1) }}">
+                    <i class="fas fa-trash-can icon-delete"></i>
+                    <span>削除</span>
+                </a>
+                <a class="action-btn" href="{{ url_for('user_usage_edit', usage_log_id=1) }}">
+                    <i class="fas fa-pen-to-square icon-edit"></i>
+                    <span>編集</span>
+                </a>
+            </div>
+
+            <button class="btn-cancel" type="button">やめる</button>
+        </div>
+    </div>
 
     <footer>
         <button class="footer-button" type="button">シェア金額一覧を見る</button>

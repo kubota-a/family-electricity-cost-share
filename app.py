@@ -466,6 +466,39 @@ def user_usage_logs():
     return render_template("user_usage_logs.html")
 
 
+@app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET"])
+@login_required
+def user_usage_edit(usage_log_id):
+    """一般ユーザー用の記録編集画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    return render_template("user_usage_edit.html", usage_log_id=usage_log_id)
+
+
+@app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET"])
+@login_required
+def user_usage_delete(usage_log_id):
+    """一般ユーザー用の記録削除画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    return render_template("user_usage_delete.html", usage_log_id=usage_log_id)
+
+
+@app.route("/user/share-amounts", methods=["GET"])
+@login_required
+def user_share_amounts():
+    """一般ユーザー用のシェア金額一覧画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    return render_template("user_share_amounts.html")
+
+
 @app.route("/admin/top")
 @login_required
 @admin_required
