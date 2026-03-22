@@ -149,6 +149,12 @@ def format_datetime_for_jst_display(dt_value):
     return tokyo_dt.strftime(f"%Y/%m/%d({weekday_label}) %H:%M")
 
 
+def format_datetime_for_jst_input(dt_value):
+    """UTC日時をdatetime-local入力用（日本時間）文字列に整形する。"""
+    utc_aware_dt = ensure_utc_aware(dt_value)
+    return utc_aware_dt.astimezone(TOKYO_TIMEZONE).strftime("%Y-%m-%dT%H:%M")
+
+
 def calculate_estimated_cost_yen(usage_log, estimated_unit_price):
     """終了済み記録の概算料金(円)を四捨五入した整数で返す。"""
     if usage_log.end_time is None or estimated_unit_price is None:
@@ -596,12 +602,70 @@ def user_usage_logs():
 @app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET"])
 @login_required
 def user_usage_edit(usage_log_id):
-    """一般ユーザー用の記録編集画面（Step 1 の最小実装）を表示する。"""
+    """一般ユーザー用の記録編集画面を表示する。"""
     # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    return render_template("user_usage_edit.html", usage_log_id=usage_log_id)
+    # 機器選択肢はログイン中ユーザーの所有機器のみ表示する
+    owned_devices = (
+        Device.query
+        .filter(Device.user_id == current_user.id)
+        .order_by(Device.id.asc())
+        .all()
+    )
+
+    # 最新の確定済み期間終了日時を基準に、未確定期間の開始日時を算出する
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+    if latest_finalized_bill is not None:
+        latest_period_end = ensure_utc_aware(latest_finalized_bill.period_end)
+        latest_period_end_in_tokyo = latest_period_end.astimezone(TOKYO_TIMEZONE)
+        unfinalized_start_tokyo = (
+            latest_period_end_in_tokyo
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_utc = unfinalized_start_tokyo.astimezone(timezone.utc)
+    else:
+        unfinalized_start_utc = None
+
+    # 編集対象は「自分の機器」「未削除」「未確定期間の開始以降」の記録のみ許可する
+    usage_log_query = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .options(joinedload(DeviceUsageLog.device))
+        .filter(
+            DeviceUsageLog.id == usage_log_id,
+            Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
+        )
+    )
+    if unfinalized_start_utc is not None:
+        usage_log_query = usage_log_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+    target_usage_log = usage_log_query.first()
+    if target_usage_log is None:
+        return redirect(url_for("user_usage_logs"))
+
+    form_data = {
+        "device_id": str(target_usage_log.device_id),
+        "start_time": format_datetime_for_jst_input(target_usage_log.start_time),
+        "end_time": (
+            format_datetime_for_jst_input(target_usage_log.end_time)
+            if target_usage_log.end_time is not None
+            else ""
+        ),
+    }
+
+    return render_template(
+        "user_usage_edit.html",
+        devices=owned_devices,
+        form_data=form_data,
+        usage_log_id=usage_log_id,
+    )
 
 
 @app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET"])

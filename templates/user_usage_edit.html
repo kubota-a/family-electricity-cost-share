@@ -197,6 +197,9 @@
             font-size: 1.1rem;
             font-weight: bold;
             cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
         }
     </style>
 </head>
@@ -214,24 +217,23 @@
         <div class="form-group">
             <span class="label-text">使った機器</span>
             <div class="select-wrapper">
-                <select>
+                <select name="device_id">
                     <option value="" disabled selected>選択してください</option>
-                    <option value="heating">暖房</option>
-                    <option value="stove-weak">ストーブ弱</option>
-                    <option value="stove-strong">ストーブ強</option>
-                    <option value="cooling">冷房</option>
+                    {% for device in devices %}
+                    <option value="{{ device.id }}" {% if form_data.device_id == (device.id | string) %}selected{% endif %}>{{ device.name }}</option>
+                    {% endfor %}
                 </select>
             </div>
         </div>
 
         <div class="form-group">
             <span class="label-text">運転を開始した日時</span>
-            <input type="datetime-local">
+            <input type="datetime-local" name="start_time" value="{{ form_data.start_time }}">
         </div>
 
         <div class="form-group">
             <span class="label-text">運転を停止した日時</span>
-            <input type="datetime-local">
+            <input type="datetime-local" name="end_time" value="{{ form_data.end_time }}">
         </div>
 
         {% with messages = get_flashed_messages() %}
@@ -249,7 +251,7 @@
 
         <div class="button-group">
             <button class="btn-main" type="button">更新する</button>
-            <button class="btn-cancel" type="button">やめる</button>
+            <a href="{{ url_for('user_usage_logs') }}" class="btn-cancel">やめる</a>
         </div>
     </main>
 </div>
