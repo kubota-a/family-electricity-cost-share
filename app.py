@@ -754,7 +754,7 @@ def user_usage_edit(usage_log_id):
 
         try:
             db.session.commit()
-        except Exception as e:
+        except Exception:
             app.logger.exception("user_usage_edit: 記録更新中に例外が発生しました")
             db.session.rollback()
             flash("記録の更新に失敗しました。", "danger")

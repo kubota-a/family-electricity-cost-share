@@ -144,6 +144,9 @@
             margin: 5px 0;
             text-align: center;
         }
+        .flash-message.danger {
+            color: #d9534f;
+        }
 
         .confirm-area {
             display: flex;
@@ -238,11 +241,12 @@
             <input type="datetime-local" name="end_time" value="{{ form_data.end_time }}">
         </div>
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="flash-message">{{ messages[-1] }}</div>
+        {% set category, message = messages[-1] %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
         {% else %}
-        <div class="flash-message">ここに各flashメッセージを表示</div>
+        <div class="flash-message"></div>
         {% endif %}
         {% endwith %}
 
