@@ -149,6 +149,12 @@ def format_datetime_for_jst_display(dt_value):
     return tokyo_dt.strftime(f"%Y/%m/%d({weekday_label}) %H:%M")
 
 
+def format_datetime_for_jst_input(dt_value):
+    """UTC日時をdatetime-local入力用（日本時間）文字列に整形する。"""
+    utc_aware_dt = ensure_utc_aware(dt_value)
+    return utc_aware_dt.astimezone(TOKYO_TIMEZONE).strftime("%Y-%m-%dT%H:%M")
+
+
 def calculate_estimated_cost_yen(usage_log, estimated_unit_price):
     """終了済み記録の概算料金(円)を四捨五入した整数で返す。"""
     if usage_log.end_time is None or estimated_unit_price is None:
@@ -468,7 +474,8 @@ def user_usage_new():
         try:
             db.session.add(new_log)
             db.session.commit()
-        except Exception:
+        except Exception as e:
+            app.logger.exception("user_usage_new: 記録保存中に例外が発生しました")
             db.session.rollback()
             flash("記録の保存に失敗しました。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
@@ -593,15 +600,185 @@ def user_usage_logs():
     )
 
 
-@app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET"])
+@app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET", "POST"])
 @login_required
 def user_usage_edit(usage_log_id):
-    """一般ユーザー用の記録編集画面（Step 1 の最小実装）を表示する。"""
+    """一般ユーザー用の記録編集画面を表示する。"""
     # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    return render_template("user_usage_edit.html", usage_log_id=usage_log_id)
+    # 機器選択肢はログイン中ユーザーの所有機器のみ表示する
+    owned_devices = (
+        Device.query
+        .filter(Device.user_id == current_user.id)
+        .order_by(Device.id.asc())
+        .all()
+    )
+
+    # 最新の確定済み期間終了日時を基準に、未確定期間の開始日時を算出する
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+    if latest_finalized_bill is not None:
+        latest_period_end = ensure_utc_aware(latest_finalized_bill.period_end)
+        latest_period_end_in_tokyo = latest_period_end.astimezone(TOKYO_TIMEZONE)
+        unfinalized_start_tokyo = (
+            latest_period_end_in_tokyo
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_utc = unfinalized_start_tokyo.astimezone(timezone.utc)
+    else:
+        unfinalized_start_utc = None
+
+    # 編集対象は「自分の機器」「未削除」「未確定期間の開始以降」の記録のみ許可する
+    usage_log_query = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .options(joinedload(DeviceUsageLog.device))
+        .filter(
+            DeviceUsageLog.id == usage_log_id,
+            Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
+        )
+    )
+    if unfinalized_start_utc is not None:
+        usage_log_query = usage_log_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+    target_usage_log = usage_log_query.first()
+    if target_usage_log is None:
+        return redirect(url_for("user_usage_logs"))
+
+    def render_edit_with_form(form_data):
+        """入力値を保持して編集画面を再表示する。"""
+        return render_template(
+            "user_usage_edit.html",
+            devices=owned_devices,
+            form_data=form_data,
+            usage_log_id=usage_log_id,
+        )
+
+    # 編集画面の更新処理（Step 3: バリデーション実装）
+    if request.method == "POST":
+        form_data = {
+            "device_id": request.form.get("device_id", "").strip(),
+            "start_time": request.form.get("start_time", "").strip(),
+            "end_time": request.form.get("end_time", "").strip(),
+        }
+
+        # 必須チェック: 使用機器と開始日時は必須
+        if not form_data["device_id"]:
+            flash("使用機器を選択してください。", "danger")
+            return render_edit_with_form(form_data)
+        if not form_data["start_time"]:
+            flash("運転を開始した日時を入力してください。", "danger")
+            return render_edit_with_form(form_data)
+
+        try:
+            device_id = int(form_data["device_id"])
+        except (TypeError, ValueError):
+            flash("使用機器の指定が不正です。", "danger")
+            return render_edit_with_form(form_data)
+
+        # 所有権チェック: 自分の所有機器のみ選択可能
+        target_device = (
+            Device.query
+            .filter(
+                Device.id == device_id,
+                Device.user_id == current_user.id,
+            )
+            .first()
+        )
+        if target_device is None:
+            flash("選択した機器が見つかりません。", "danger")
+            return render_edit_with_form(form_data)
+
+        # datetime-local形式チェック（YYYY-MM-DDTHH:MM）
+        try:
+            start_time = parse_datetime_local_as_utc(form_data["start_time"])
+        except ValueError:
+            flash("運転開始日時の形式が不正です。", "danger")
+            return render_edit_with_form(form_data)
+
+        if form_data["end_time"]:
+            try:
+                end_time = parse_datetime_local_as_utc(form_data["end_time"])
+            except ValueError:
+                flash("運転停止日時の形式が不正です。", "danger")
+                return render_edit_with_form(form_data)
+        else:
+            end_time = None
+
+        # 開始日時の確定済み期間チェック（未確定期間以降のみ編集可）
+        if unfinalized_start_utc is not None and start_time < unfinalized_start_utc:
+            flash("確定済み期間の記録は編集できません。", "danger")
+            return render_edit_with_form(form_data)
+
+        # 未来日時チェック（開始・停止ともに未来は不可）
+        now_utc = datetime.now(timezone.utc)
+        if start_time > now_utc:
+            flash("運転開始日時に未来の日時は指定できません。", "danger")
+            return render_edit_with_form(form_data)
+        if end_time is not None and end_time > now_utc:
+            flash("運転停止日時に未来の日時は指定できません。", "danger")
+            return render_edit_with_form(form_data)
+
+        # 停止日時入力時のみ、開始 < 停止 を確認する
+        if end_time is not None and start_time >= end_time:
+            flash("運転停止日時は運転開始日時より後を指定してください。", "danger")
+            return render_edit_with_form(form_data)
+
+        # 未終了記録の重複チェック（自分自身は除外）
+        if end_time is None:
+            has_running_log = (
+                DeviceUsageLog.query
+                .join(Device, DeviceUsageLog.device_id == Device.id)
+                .filter(
+                    Device.user_id == current_user.id,
+                    DeviceUsageLog.deleted_at.is_(None),
+                    DeviceUsageLog.end_time.is_(None),
+                    DeviceUsageLog.id != target_usage_log.id,
+                )
+                .first()
+                is not None
+            )
+            if has_running_log:
+                flash("現在運転中の機器があるため、停止日時なしでは更新できません。", "danger")
+                return render_edit_with_form(form_data)
+
+        target_usage_log.device_id = target_device.id
+        target_usage_log.start_time = start_time
+        target_usage_log.end_time = end_time
+
+        try:
+            db.session.commit()
+        except Exception:
+            app.logger.exception("user_usage_edit: 記録更新中に例外が発生しました")
+            db.session.rollback()
+            flash("記録の更新に失敗しました。", "danger")
+            return render_edit_with_form(form_data)
+
+        flash("記録を更新しました", "success")
+        return redirect(url_for("user_usage_logs"))
+
+    form_data = {
+        "device_id": str(target_usage_log.device_id),
+        "start_time": format_datetime_for_jst_input(target_usage_log.start_time),
+        "end_time": (
+            format_datetime_for_jst_input(target_usage_log.end_time)
+            if target_usage_log.end_time is not None
+            else ""
+        ),
+    }
+
+    return render_template(
+        "user_usage_edit.html",
+        devices=owned_devices,
+        form_data=form_data,
+        usage_log_id=usage_log_id,
+    )
 
 
 @app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET"])
