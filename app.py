@@ -990,11 +990,106 @@ def admin_top():
         )
         unfinalized_start_utc = unfinalized_start_tokyo.astimezone(timezone.utc)
         unfinalized_start_display = unfinalized_start_tokyo.strftime("%Y/%m/%d")
+        unfinalized_start_date_tokyo = unfinalized_start_tokyo.date()
     else:
         latest_created_display = "- - - - -"
         latest_period_display = "- - - - -"
         unfinalized_start_utc = None
         unfinalized_start_display = "- - - - -"
+        unfinalized_start_date_tokyo = None
+
+    # メンバー選択肢とカード対象は role='user' のみ
+    user_members = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+    user_member_ids = {member.id for member in user_members}
+
+    # 未確定記録一覧の絞り込み入力を受け取る（Step 5）
+    selected_member_id = request.args.get("member_id", "").strip()
+    filter_start_date = request.args.get("start_date", "").strip()
+    filter_end_date = request.args.get("end_date", "").strip()
+    selected_member_id_int = None
+    filter_start_utc = None
+    filter_end_utc = None
+    has_filter_error = False
+
+    now_tokyo = datetime.now(timezone.utc).astimezone(TOKYO_TIMEZONE)
+    today_tokyo_date = now_tokyo.date()
+
+    if selected_member_id:
+        try:
+            selected_member_id_int = int(selected_member_id)
+        except ValueError:
+            flash("メンバー絞り込みの指定が不正です。", "danger")
+            has_filter_error = True
+            selected_member_id_int = None
+        else:
+            if selected_member_id_int not in user_member_ids:
+                flash("メンバー絞り込みの指定が不正です。", "danger")
+                has_filter_error = True
+                selected_member_id_int = None
+
+    filter_start_date_obj = None
+    filter_end_date_obj = None
+    if filter_start_date:
+        try:
+            filter_start_date_obj = datetime.strptime(filter_start_date, "%Y-%m-%d").date()
+        except ValueError:
+            flash("開始日の形式が不正です。", "danger")
+            has_filter_error = True
+    if filter_end_date:
+        try:
+            filter_end_date_obj = datetime.strptime(filter_end_date, "%Y-%m-%d").date()
+        except ValueError:
+            flash("終了日の形式が不正です。", "danger")
+            has_filter_error = True
+
+    # 対象期間外入力をサーバー側で検証する（開始日は未確定期間開始日以上、終了日は今日以下）
+    if filter_start_date_obj is not None and unfinalized_start_date_tokyo is not None:
+        if filter_start_date_obj < unfinalized_start_date_tokyo:
+            flash("開始日は未確定期間の開始日以降を指定してください。", "danger")
+            has_filter_error = True
+    if filter_end_date_obj is not None and unfinalized_start_date_tokyo is not None:
+        if filter_end_date_obj < unfinalized_start_date_tokyo:
+            flash("終了日は未確定期間の開始日以降を指定してください。", "danger")
+            has_filter_error = True
+    if filter_start_date_obj is not None and filter_start_date_obj > today_tokyo_date:
+        flash("開始日は本日以前を指定してください。", "danger")
+        has_filter_error = True
+    if filter_end_date_obj is not None and filter_end_date_obj > today_tokyo_date:
+        flash("終了日は本日以前を指定してください。", "danger")
+        has_filter_error = True
+    if filter_start_date_obj is not None and filter_end_date_obj is not None:
+        if filter_start_date_obj > filter_end_date_obj:
+            flash("開始日は終了日以前を指定してください。", "danger")
+            has_filter_error = True
+
+    if not has_filter_error:
+        if filter_start_date_obj is not None:
+            start_tokyo_dt = datetime(
+                filter_start_date_obj.year,
+                filter_start_date_obj.month,
+                filter_start_date_obj.day,
+                0,
+                0,
+                0,
+                tzinfo=TOKYO_TIMEZONE,
+            )
+            filter_start_utc = start_tokyo_dt.astimezone(timezone.utc)
+        if filter_end_date_obj is not None:
+            end_tokyo_dt = datetime(
+                filter_end_date_obj.year,
+                filter_end_date_obj.month,
+                filter_end_date_obj.day,
+                23,
+                59,
+                59,
+                tzinfo=TOKYO_TIMEZONE,
+            )
+            filter_end_utc = end_tokyo_dt.astimezone(timezone.utc)
 
     # 仮単価表示は app_settings の先頭1件を採用する
     app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
@@ -1031,14 +1126,6 @@ def admin_top():
         )
     else:
         latest_three_avg_unit_price_display = "- - -"
-
-    # メンバー選択肢とカード対象は role='user' のみ
-    user_members = (
-        User.query
-        .filter(User.role == "user")
-        .order_by(User.created_at.asc(), User.id.asc())
-        .all()
-    )
 
     # 未確定期間の終了済み記録をメンバーごとに集計する（運転中は除外）
     ended_logs_query = (
@@ -1122,6 +1209,12 @@ def admin_top():
     )
     if unfinalized_start_utc is not None:
         unfinalized_logs_query = unfinalized_logs_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+    if not has_filter_error and selected_member_id_int is not None:
+        unfinalized_logs_query = unfinalized_logs_query.filter(Device.user_id == selected_member_id_int)
+    if not has_filter_error and filter_start_utc is not None:
+        unfinalized_logs_query = unfinalized_logs_query.filter(DeviceUsageLog.start_time >= filter_start_utc)
+    if not has_filter_error and filter_end_utc is not None:
+        unfinalized_logs_query = unfinalized_logs_query.filter(DeviceUsageLog.start_time <= filter_end_utc)
 
     raw_unfinalized_logs = (
         unfinalized_logs_query
@@ -1169,7 +1262,9 @@ def admin_top():
         user_members=user_members,
         member_estimate_cards=member_estimate_cards,
         unfinalized_usage_logs=unfinalized_usage_logs,
-        selected_member_id="",
+        selected_member_id=selected_member_id,
+        filter_start_date=filter_start_date,
+        filter_end_date=filter_end_date,
         selected_price_mode=selected_price_mode,
     )
 

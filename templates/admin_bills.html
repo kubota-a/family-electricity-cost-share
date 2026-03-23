@@ -51,7 +51,9 @@
         .page-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; }
 
         /* flashメッセージ（見出しの直下） */
-        .flash-message { background: #e8f5e9; color: #2e7d32; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85rem; text-align: center; border: 1px solid #c8e6c9; }
+        .flash-message { padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85rem; text-align: center; border: 1px solid transparent; }
+        .flash-message.success { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
+        .flash-message.danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
         
         .header-section { margin-bottom: 25px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
         .date-summary { font-size: 0.95rem; color: #666; margin-bottom: 10px; }
@@ -163,14 +165,12 @@
         <h2 class="page-title">確定済の電気料金</h2>
 
         <!-- flashメッセージ（見出し直下） -->
-        <div class="flash-message">
-            {% set messages = get_flashed_messages() %}
-            {% if messages %}
-                {{ messages[0] }}
-            {% else %}
-                ここに各flashメッセージを表示
-            {% endif %}
-        </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% set category, message = messages[-1] %}
+        <div class="flash-message {{ 'danger' if category == 'danger' else 'success' }}">{{ message }}</div>
+        {% endif %}
+        {% endwith %}
 
         <!-- 確定日・請求総額 -->
         <div class="header-section">
