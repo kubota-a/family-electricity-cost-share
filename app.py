@@ -878,6 +878,22 @@ def admin_top():
     return render_template("admin_top.html")
 
 
+@app.route("/admin/bills/confirm", methods=["GET"])
+@login_required
+@admin_required
+def admin_bill_confirm():
+    """管理者用の電気料金確定画面（Step 1 の最小実装）を表示する。"""
+    return render_template("admin_bill_confirm.html")
+
+
+@app.route("/admin/bills", methods=["GET"])
+@login_required
+@admin_required
+def admin_bills():
+    """管理者用の確定済み電気料金一覧画面（Step 1 の最小実装）を表示する。"""
+    return render_template("admin_bills.html")
+
+
 @app.route("/admin/users", methods=["GET", "POST"])
 @login_required
 @admin_required

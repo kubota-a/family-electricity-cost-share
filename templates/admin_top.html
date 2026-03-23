@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>いえ電シェア 管理者パネル</title>
+    <title>いえ電シェア 管理者トップ</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -163,8 +163,8 @@
             <a href="{{ url_for('admin_top') }}" class="nav-item active">HOME</a>
             <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
             <a href="{{ url_for('admin_devices') }}" class="nav-item">機器</a>
-            <a href="#" class="nav-item">電気料金の確定</a>
-            <a href="#" class="nav-item">確定済の電気料金</a>
+            <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item">電気料金の確定</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済の電気料金</a>
         </nav>
         <form action="{{ url_for('logout') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -194,7 +194,7 @@
                 <div class="status-msg">
                     2025/11/20以降の<br>締の日と電気料金が未確定です。
                 </div>
-                <button class="btn-primary">確定させる</button>
+                <button type="button" class="btn-primary" onclick="location.href='{{ url_for('admin_bill_confirm') }}'">確定させる</button>
             </div>
 
             <div class="card unit-price-box">
@@ -207,7 +207,7 @@
                         <span><input type="text" value="28.0"> 円/kWh</span>
                     </label>
                     <label class="radio-item">
-                        <span><input type="radio" name="price"> 直近3ヶ月の平均値</span>
+                        <span><input type="radio" name="price"> 直近3件の確定単価平均値</span>
                         <span>27.5円/kWh</span>
                     </label>
                 </div>

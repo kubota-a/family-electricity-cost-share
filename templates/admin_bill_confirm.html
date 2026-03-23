@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>電気料金の確定 - いえ電シェア</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #d88c8c;
+            --bg-color: #fdf8f8;
+            --sidebar-bg: #ffffff;
+            --text-main: #333;
+            --border-color: #eee;
+            --card-bg: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif; background-color: var(--bg-color); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* --- サイドバー（共通） --- */
+        .sidebar { width: 240px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+        .sidebar-header i { color: var(--primary-color); font-size: 1.2rem; }
+        .sidebar-header h1 { font-size: 1rem; line-height: 1.2; }
+        .nav-menu { flex-grow: 1; padding: 20px 0; }
+        .nav-item { padding: 12px 25px; cursor: pointer; display: block; text-decoration: none; color: var(--text-main); transition: 0.2s; font-weight: 500; }
+        .nav-item:hover { background: #fff5f5; color: var(--primary-color); }
+        .nav-item.active { border-left: 4px solid var(--primary-color); background: #fff5f5; color: var(--primary-color); }
+        .logout {
+            padding: 20px 25px;
+            border-top: 1px solid var(--border-color);
+            color: #888;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            background: transparent;
+            border-left: none;
+            border-right: none;
+            border-bottom: none;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        /* --- メインコンテンツ --- */
+        .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; max-width: 1200px; }
+        
+        .header-flex { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; }
+        .header-info { text-align: right; font-size: 0.9rem; color: #666; line-height: 1.5; }
+
+        .alert-box { display: flex; align-items: center; gap: 15px; background: #fff; padding: 15px 20px; border-radius: 12px; border: 1px solid #ffe082; margin-bottom: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        .alert-box i { color: #fbc02d; font-size: 1.4rem; }
+        .alert-box span { font-weight: bold; font-size: 1.1rem; }
+
+        /* レイアウト構成 */
+        .content-grid { display: grid; grid-template-columns: 1fr 320px; gap: 30px; align-items: start; }
+
+        /* 左側：入力フォーム */
+        .form-card { background: var(--card-bg); padding: 30px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .form-instruction { text-align: center; font-weight: bold; margin-bottom: 25px; color: #555; line-height: 1.6; }
+
+        .form-group { margin-bottom: 20px; }
+        .label-text { display: block; font-size: 0.85rem; font-weight: bold; color: #777; margin-bottom: 8px; }
+        
+        .input-row { display: flex; gap: 10px; align-items: center; }
+        .input-row input[type="date"] { flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; }
+
+        .unit-input-wrapper { position: relative; display: flex; align-items: center; }
+        .unit-input-wrapper input { width: 100%; padding: 12px 45px 12px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem; outline: none; text-align: left; }
+        .unit-input-wrapper::after { content: attr(data-unit); position: absolute; right: 15px; color: #bbb; font-size: 0.85rem; pointer-events: none; }
+
+        .calculation-result { border-top: 1px dashed var(--border-color); margin-top: 25px; padding-top: 20px; }
+        .result-label { font-size: 0.85rem; color: #888; }
+        .result-value { font-size: 1.8rem; font-weight: bold; margin-top: 5px; }
+        .result-formula { font-size: 0.75rem; color: #999; margin-left: 10px; font-weight: normal; }
+
+        .flash-message { background: #e8f5e9; color: #2e7d32; padding: 12px; border-radius: 8px; margin-top: 20px; font-size: 0.85rem; text-align: center; border: 1px solid #c8e6c9; }
+        .btn-submit { display: block; width: 100%; max-width: 300px; margin: 25px auto 0; padding: 14px; background: var(--primary-color); color: #fff; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(216, 140, 140, 0.3); }
+        .btn-submit:hover { opacity: 0.8; transform: translateY(-1px); }
+
+        /* 右側：カルーセル */
+        .preview-section { display: flex; flex-direction: column; align-items: center; }
+        .preview-title { font-weight: bold; color: #666; margin-bottom: 15px; width: 100%; text-align: left; padding-left: 10px;}
+        
+        .carousel-vertical { height: 620px; position: relative; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .carousel-track { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; padding: 10px 0; height: 100%; width: 280px; }
+        .carousel-track::-webkit-scrollbar { display: none; }
+
+        .preview-card { min-height: 160px; width: 100%; border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; scroll-snap-align: start; box-shadow: 0 2px 8px rgba(0,0,0,0.04); flex-shrink: 0; }
+        .card-hanako { background-color: #fff0f3; }
+        .card-taro { background-color: #f0f4ff; }
+        .card-ichiro { background-color: #f1fcf0; }
+
+        .preview-card h3 { font-size: 1rem; padding-bottom: 8px; margin-bottom: 8px; text-align: center; color: #555; }
+        
+        .price-details-box { background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 12px; }
+        .price-line { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; color: #444; }
+        .price-line.total { font-weight: bold; color: var(--primary-color); border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 8px; font-size: 0.95rem; }
+
+        .nav-btn { background: #fff; border: 1px solid var(--border-color); width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: 0.2s; z-index: 5; flex-shrink: 0; }
+        .nav-btn:hover { background: var(--primary-color); color: white; }
+
+        /* --- レスポンシブ --- */
+        @media (max-width: 900px) {
+            .content-grid { grid-template-columns: 1fr; }
+            .sidebar { width: 100%; height: auto; position: relative; border-bottom: 1px solid var(--border-color); }
+            .nav-menu { display: flex; overflow-x: auto; padding: 0; }
+            .nav-item { padding: 15px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
+            .nav-item.active { border-bottom: 3px solid var(--primary-color); }
+            .main-content { margin-left: 0; padding: 20px; }
+            .carousel-vertical { height: auto; flex-direction: row; width: 100%; overflow-x: auto; }
+            .carousel-track { flex-direction: row; overflow-x: auto; height: auto; width: 100%; }
+            .nav-btn { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <a href="{{ url_for('index') }}" class="sidebar-header">
+            <i class="fas fa-home"></i>
+            <h1>いえ電シェア<br>管理者パネル</h1>
+        </a>
+        <nav class="nav-menu">
+            <a href="{{ url_for('index') }}" class="nav-item">HOME</a>
+            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
+            <a href="{{ url_for('admin_devices') }}" class="nav-item">機器</a>
+            <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item active">電気料金の確定</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済の電気料金</a>
+        </nav>
+        <form action="{{ url_for('logout') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="logout">
+                <i class="fas fa-sign-out-alt"></i> ログアウト
+            </button>
+        </form>
+    </aside>
+
+    <main class="main-content">
+        <div class="header-flex">
+            <h2>電気料金の確定</h2>
+            <div class="header-info">
+                最終確定 2025/12/21<br>
+                2025/10/22〜2025/11/19利用分
+            </div>
+        </div>
+
+        <div class="alert-box">
+            <i class="fas fa-sun"></i>
+            <span>2025/11/20以降の締め日と電気料金が未確定です。</span>
+        </div>
+
+        <div class="content-grid">
+            <div class="form-card">
+                <p class="form-instruction">電力会社の請求書を参考に<br>下記を入力してください</p>
+                
+                <div class="form-group">
+                    <span class="label-text">検針日（利用期間）</span>
+                    <div class="input-row">
+                        <input type="date">
+                        <span>〜</span>
+                        <input type="date">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <span class="label-text">請求総額</span>
+                        <div class="unit-input-wrapper" data-unit="円">
+                            <input type="text" placeholder="" oninput="formatCurrency(this)">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <span class="label-text">基本料金</span>
+                        <div class="unit-input-wrapper" data-unit="円">
+                            <input type="text" placeholder="" oninput="formatCurrency(this)">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <span class="label-text">使用量（kWh）</span>
+                    <div class="unit-input-wrapper" data-unit="kWh">
+                        <input type="text" placeholder="">
+                    </div>
+                </div>
+
+                <div class="calculation-result">
+                    <span class="result-label">確定単価</span>
+                    <span class="result-formula">（請求総額-基本料金）/使用量</span>
+                    <div class="result-value">0.0 <span style="font-size: 1rem; color: #666;">円/kWh</span></div>
+                </div>
+
+                <div class="flash-message">
+                    {% set messages = get_flashed_messages() %}
+                    {% if messages %}
+                        {{ messages[0] }}
+                    {% else %}
+                        ここに各flashメッセージを表示
+                    {% endif %}
+                </div>
+                
+                <button class="btn-submit" type="button">この期間の料金を確定する</button>
+            </div>
+
+            <div class="preview-section">
+                <p class="preview-title">プレビュー</p>
+                <div class="carousel-vertical">
+                    <button class="nav-btn" onclick="scrollCarousel(-1)"><i class="fas fa-chevron-up"></i></button>
+                    <div class="carousel-track" id="previewCarousel">
+                        <div class="preview-card card-hanako">
+                            <h3>花子</h3>
+                            <div class="price-details-box">
+                                <div class="price-line total"><span>シェア金額：</span><span>〇〇〇円</span></div>
+                                <div class="price-line"><span>機器使用分：</span><span>〇〇〇円</span></div>
+                                <div class="price-line"><span>割り勘分：</span><span>〇〇〇円</span></div>
+                            </div>
+                        </div>
+                        <div class="preview-card card-taro">
+                            <h3>太郎</h3>
+                            <div class="price-details-box">
+                                <div class="price-line total"><span>シェア金額：</span><span>〇〇〇円</span></div>
+                                <div class="price-line"><span>機器使用分：</span><span>〇〇〇円</span></div>
+                                <div class="price-line"><span>割り勘分：</span><span>〇〇〇円</span></div>
+                            </div>
+                        </div>
+                        <div class="preview-card card-ichiro">
+                            <h3>一郎</h3>
+                            <div class="price-details-box">
+                                <div class="price-line total"><span>シェア金額：</span><span>〇〇〇円</span></div>
+                                <div class="price-line"><span>機器使用分：</span><span>〇〇〇円</span></div>
+                                <div class="price-line"><span>割り勘分：</span><span>〇〇〇円</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="nav-btn" onclick="scrollCarousel(1)"><i class="fas fa-chevron-down"></i></button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function formatCurrency(input) {
+            let value = input.value.replace(/,/g, '');
+            if (!isNaN(value) && value !== "") {
+                input.value = Number(value).toLocaleString();
+            }
+        }
+
+        function scrollCarousel(direction) {
+            const track = document.getElementById('previewCarousel');
+            const scrollAmount = 180;
+            track.scrollBy({
+                top: direction * scrollAmount,
+                behavior: 'smooth'
+            });
+        }
+    </script>
+</body>
+</html>
