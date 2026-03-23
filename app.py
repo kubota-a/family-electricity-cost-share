@@ -168,6 +168,31 @@ def calculate_estimated_cost_yen(usage_log, estimated_unit_price):
     return int(estimated_cost.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
+def format_date_for_jst_display(dt_value):
+    """UTC日時を日本時間へ変換し、日付(YYYY/MM/DD)で表示する。"""
+    utc_aware_dt = ensure_utc_aware(dt_value)
+    return utc_aware_dt.astimezone(TOKYO_TIMEZONE).strftime("%Y/%m/%d")
+
+
+def format_duration_for_display(start_time, end_time):
+    """使用時間を「◯時間◯◯分」形式で返す。"""
+    if start_time is None or end_time is None:
+        return "-"
+
+    start_time_utc = ensure_utc_aware(start_time)
+    end_time_utc = ensure_utc_aware(end_time)
+    total_seconds = int((end_time_utc - start_time_utc).total_seconds())
+    if total_seconds < 0:
+        return "-"
+
+    total_minutes = total_seconds // 60
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    if hours == 0:
+        return f"{minutes}分"
+    return f"{hours}時間{minutes:02d}分"
+
+
 @app.route("/")
 def index():
     """アプリのトップ入口。ログイン状態とロールに応じて適切な画面へリダイレクトする。"""
@@ -875,7 +900,200 @@ def user_share_amounts():
 @admin_required
 def admin_top():
     """管理者用トップ画面を表示する。"""
-    return render_template("admin_top.html")
+    # 最新の確定済み電気料金を取得し、未確定期間の開始日時を算出する
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+    if latest_finalized_bill is not None:
+        latest_created_display = format_date_for_jst_display(latest_finalized_bill.created_at)
+        latest_period_display = (
+            f"{format_date_for_jst_display(latest_finalized_bill.period_start)}"
+            f"〜{format_date_for_jst_display(latest_finalized_bill.period_end)}利用分"
+        )
+
+        latest_period_end_utc = ensure_utc_aware(latest_finalized_bill.period_end)
+        unfinalized_start_tokyo = (
+            latest_period_end_utc.astimezone(TOKYO_TIMEZONE)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_utc = unfinalized_start_tokyo.astimezone(timezone.utc)
+        unfinalized_start_display = unfinalized_start_tokyo.strftime("%Y/%m/%d")
+    else:
+        latest_created_display = "- - - - -"
+        latest_period_display = "- - - - -"
+        unfinalized_start_utc = None
+        unfinalized_start_display = "- - - - -"
+
+    # 仮単価表示は app_settings の先頭1件を採用する
+    app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
+    estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
+    if estimated_unit_price is not None:
+        current_estimated_unit_price_display = str(
+            Decimal(str(estimated_unit_price)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        )
+    else:
+        current_estimated_unit_price_display = "- - -"
+
+    # 直近3件の確定単価平均値（表示用）
+    latest_three_finalized_bills = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .limit(3)
+        .all()
+    )
+    if latest_three_finalized_bills:
+        total_unit_price = sum(
+            Decimal(str(finalized_bill.unit_price))
+            for finalized_bill in latest_three_finalized_bills
+        )
+        average_unit_price = total_unit_price / Decimal(len(latest_three_finalized_bills))
+        latest_three_avg_unit_price_display = str(
+            average_unit_price.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        )
+    else:
+        latest_three_avg_unit_price_display = "- - -"
+
+    # メンバー選択肢とカード対象は role='user' のみ
+    user_members = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+
+    # 未確定期間の終了済み記録をメンバーごとに集計する（運転中は除外）
+    ended_logs_query = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .join(User, Device.user_id == User.id)
+        .options(joinedload(DeviceUsageLog.device).joinedload(Device.user))
+        .filter(
+            User.role == "user",
+            DeviceUsageLog.end_time.isnot(None),
+        )
+    )
+    if unfinalized_start_utc is not None:
+        ended_logs_query = ended_logs_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+    ended_logs = (
+        ended_logs_query
+        .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
+        .all()
+    )
+
+    member_summaries = {}
+    for member in user_members:
+        member_summaries[member.id] = {
+            "user": member,
+            "total_estimated_cost_yen": 0,
+            "latest_start_time": None,
+            "has_cost_data": estimated_unit_price is not None,
+        }
+
+    for usage_log in ended_logs:
+        owner_user = usage_log.device.user
+        if owner_user is None or owner_user.id not in member_summaries:
+            continue
+
+        member_summary = member_summaries[owner_user.id]
+        estimated_cost_yen = calculate_estimated_cost_yen(usage_log, estimated_unit_price)
+        if estimated_cost_yen is None:
+            member_summary["has_cost_data"] = False
+        else:
+            member_summary["total_estimated_cost_yen"] += estimated_cost_yen
+
+        current_latest = member_summary["latest_start_time"]
+        usage_start_utc = ensure_utc_aware(usage_log.start_time)
+        if current_latest is None or usage_start_utc > current_latest:
+            member_summary["latest_start_time"] = usage_start_utc
+
+    member_estimate_cards = []
+    for member_summary in member_summaries.values():
+        member = member_summary["user"]
+        if member_summary["has_cost_data"]:
+            amount_display = f"{member_summary['total_estimated_cost_yen']:,}円"
+        else:
+            amount_display = "- - -"
+
+        member_estimate_cards.append(
+            {
+                "user_id": member.id,
+                "name": member.name,
+                "amount_display": amount_display,
+                "latest_start_time": member_summary["latest_start_time"],
+                "color": member.color,
+            }
+        )
+
+    # 未確定期間内の最新開始日時が新しい順（該当なしは後ろ）
+    member_estimate_cards.sort(
+        key=lambda item: (
+            item["latest_start_time"] is not None,
+            item["latest_start_time"] or datetime.min.replace(tzinfo=timezone.utc),
+        ),
+        reverse=True,
+    )
+
+    # 未確定記録一覧（論理削除済みも含める）
+    unfinalized_logs_query = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .join(User, Device.user_id == User.id)
+        .options(joinedload(DeviceUsageLog.device).joinedload(Device.user))
+        .filter(User.role == "user")
+    )
+    if unfinalized_start_utc is not None:
+        unfinalized_logs_query = unfinalized_logs_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+
+    raw_unfinalized_logs = (
+        unfinalized_logs_query
+        .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
+        .all()
+    )
+
+    unfinalized_usage_logs = []
+    for usage_log in raw_unfinalized_logs:
+        if usage_log.deleted_at is not None:
+            status_type = "deleted"
+        elif usage_log.end_time is None:
+            status_type = "running"
+        else:
+            status_type = "normal"
+
+        if usage_log.end_time is None:
+            duration_display = "-"
+            estimated_cost_display = "-"
+        else:
+            duration_display = format_duration_for_display(usage_log.start_time, usage_log.end_time)
+            estimated_cost_yen = calculate_estimated_cost_yen(usage_log, estimated_unit_price)
+            estimated_cost_display = f"{estimated_cost_yen:,}円" if estimated_cost_yen is not None else "-"
+
+        unfinalized_usage_logs.append(
+            {
+                "id": usage_log.id,
+                "start_time_display": format_datetime_for_jst_display(usage_log.start_time),
+                "member_name": usage_log.device.user.name,
+                "device_name": usage_log.device.name,
+                "duration_display": duration_display,
+                "estimated_cost_display": estimated_cost_display,
+                "status_type": status_type,
+            }
+        )
+
+    return render_template(
+        "admin_top.html",
+        latest_created_display=latest_created_display,
+        latest_period_display=latest_period_display,
+        unfinalized_start_display=unfinalized_start_display,
+        current_estimated_unit_price_display=current_estimated_unit_price_display,
+        latest_three_avg_unit_price_display=latest_three_avg_unit_price_display,
+        user_members=user_members,
+        member_estimate_cards=member_estimate_cards,
+        unfinalized_usage_logs=unfinalized_usage_logs,
+        selected_member_id="",
+    )
 
 
 @app.route("/admin/bills/confirm", methods=["GET"])
