@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>いえ電シェア 管理者パネル</title>
+    <title>いえ電シェア 管理者トップ</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -54,7 +54,9 @@
         /* --- メインコンテンツ --- */
         .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; max-width: 1200px; }
 
-        .flash-message { background: #e8f5e9; color: #2e7d32; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem; border: 1px solid #c8e6c9; }
+        .flash-message { padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem; border: 1px solid transparent; }
+        .flash-message.success { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
+        .flash-message.danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
 
         .top-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
         .card { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
@@ -137,6 +139,7 @@
         .filter-area { display: flex; gap: 20px; justify-content: flex-end; margin-bottom: 15px; font-size: 0.85rem; align-items: center; flex-wrap: wrap; }
         .filter-item { display: flex; align-items: center; gap: 8px; color: #555; }
         .filter-item input[type="date"], .filter-item select { padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem; color: #333; outline: none; }
+        .filter-item button, .filter-item .filter-link-btn { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: #fff; color: #555; cursor: pointer; text-decoration: none; display: inline-block; }
 
         @media (max-width: 768px) {
             body { flex-direction: column; }
@@ -163,8 +166,8 @@
             <a href="{{ url_for('admin_top') }}" class="nav-item active">HOME</a>
             <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
             <a href="{{ url_for('admin_devices') }}" class="nav-item">機器</a>
-            <a href="#" class="nav-item">電気料金の確定</a>
-            <a href="#" class="nav-item">確定済の電気料金</a>
+            <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item">電気料金の確定</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済の電気料金</a>
         </nav>
         <form action="{{ url_for('logout') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -175,109 +178,79 @@
     </aside>
 
     <main class="main-content">
-        <div class="flash-message">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% set category, message = messages[-1] %}
+        <div class="flash-message {{ 'danger' if category == 'danger' else 'success' }}">
             <i class="fas fa-info-circle"></i>
-            {% set messages = get_flashed_messages() %}
-            {% if messages %}
-                {{ messages[0] }}
-            {% else %}
-                ここに各flashメッセージを表示
-            {% endif %}
+            {{ message }}
         </div>
+        {% endif %}
+        {% endwith %}
 
         <div class="top-row">
             <div class="card confirm-box">
                 <div class="date-info">
-                    最終確定 2025/12/21<br>
-                    2025/10/22〜2025/11/19利用分
+                    最終確定 {{ latest_created_display }}<br>
+                    {{ latest_period_display }}
                 </div>
                 <div class="status-msg">
-                    2025/11/20以降の<br>締の日と電気料金が未確定です。
+                    {{ unfinalized_start_display }}以降の<br>締の日と電気料金が未確定です。
                 </div>
-                <button class="btn-primary">確定させる</button>
+                <button type="button" class="btn-primary" onclick="location.href='{{ url_for('admin_bill_confirm') }}'">確定させる</button>
             </div>
 
-            <div class="card unit-price-box">
-                <button class="btn-save">保存</button>
+            <form class="card unit-price-box" action="{{ url_for('admin_top') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-save">保存</button>
                 <div class="section-title">現在の仮単価</div>
-                <div class="price-display">28.0<span style="font-size: 0.9rem;">円/kWh</span></div>
+                <div class="price-display">{{ current_estimated_unit_price_display }}<span style="font-size: 0.9rem;">円/kWh</span></div>
                 <div class="radio-group">
                     <label class="radio-item">
-                        <span><input type="radio" name="price" checked> 任意の金額</span>
-                        <span><input type="text" value="28.0"> 円/kWh</span>
+                        <span><input type="radio" name="estimated_price_mode" value="manual" {% if selected_price_mode == "manual" %}checked{% endif %}> 任意の金額</span>
+                        <span><input type="text" name="estimated_unit_price" value="{{ current_estimated_unit_price_input }}"> 円/kWh</span>
                     </label>
                     <label class="radio-item">
-                        <span><input type="radio" name="price"> 直近3ヶ月の平均値</span>
-                        <span>27.5円/kWh</span>
+                        <span><input type="radio" name="estimated_price_mode" value="latest_three_average" {% if selected_price_mode == "latest_three_average" %}checked{% endif %}> 直近3件の確定単価平均値</span>
+                        <span>{{ latest_three_avg_unit_price_display }}円/kWh</span>
                     </label>
                 </div>
-            </div>
+            </form>
         </div>
 
-        <div class="section-title">2025/11/20以降の機器使用料金目安</div>
+        <div class="section-title">{{ unfinalized_start_display }}以降の機器使用料金目安</div>
         <div class="carousel-container">
             <div class="carousel-wrapper">
-                <div class="member-card card-hanako">
-                    <div class="member-name">花子</div>
-                    <div class="member-amount">〇〇〇〇円</div>
+                {% for member_card in member_estimate_cards %}
+                <div class="member-card" style="background-color: {{ member_card.color }};">
+                    <div class="member-name">{{ member_card.name }}</div>
+                    <div class="member-amount">{{ member_card.amount_display }}</div>
                 </div>
-                <div class="member-card card-taro">
-                    <div class="member-name">太郎</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-ichiro">
-                    <div class="member-name">一郎</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-ryoko">
-                    <div class="member-name">良子</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-naoki">
-                    <div class="member-name">直樹</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-megumi">
-                    <div class="member-name">恵</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-kenta">
-                    <div class="member-name">健太</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-misaki">
-                    <div class="member-name">美咲</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-shuhei">
-                    <div class="member-name">修平</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-ai">
-                    <div class="member-name">愛</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
+                {% endfor %}
             </div>
         </div>
 
-        <div class="section-title">2025/11/20以降の未確定記録一覧</div>
+        <div class="section-title">{{ unfinalized_start_display }}以降の未確定記録一覧</div>
 
-        <div class="filter-area">
+        <form class="filter-area" method="get" action="{{ url_for('admin_top') }}">
             <div class="filter-item">
                 <i class="fas fa-calendar-alt"></i>
-                <input type="date"> 〜 <input type="date">
+                <input type="date" name="start_date" value="{{ filter_start_date }}"> 〜 <input type="date" name="end_date" value="{{ filter_end_date }}">
             </div>
             <div class="filter-item">
                 <i class="fas fa-user-friends"></i>
-                <select>
-                    <option value="">メンバーで絞り込み</option>
-                    <option value="hanako">花子</option>
-                    <option value="taro">太郎</option>
-                    <option value="ichiro">一郎</option>
-                    <option value="ryoko">良子</option>
+                <select name="member_id">
+                    <option value="">すべてのメンバー</option>
+                    {% for member in user_members %}
+                    <option value="{{ member.id }}" {% if selected_member_id == member.id|string %}selected{% endif %}>{{ member.name }}</option>
+                    {% endfor %}
                 </select>
             </div>
-        </div>
+            <div class="filter-item">
+                <button type="submit">絞り込み</button>
+                <a href="{{ url_for('admin_top') }}" class="filter-link-btn">リセット</a>
+            </div>
+        </form>
 
         <div class="table-container">
             <table id="recordTable">
@@ -292,118 +265,30 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% if unfinalized_usage_logs %}
+                    {% for usage_log in unfinalized_usage_logs %}
                     <tr>
-                        <td>2025/12/22(月) 18:30</td>
-                        <td>花子</td>
-                        <td>ストーブ弱</td>
-                        <td>45分</td>
-                        <td>23円</td>
-                        <td><span class="badge-status badge-on">運転中</span></td>
+                        <td>{{ usage_log.start_time_display }}</td>
+                        <td>{{ usage_log.member_name }}</td>
+                        <td>{{ usage_log.device_name }}</td>
+                        <td>{{ usage_log.duration_display }}</td>
+                        <td>{{ usage_log.estimated_cost_display }}</td>
+                        <td>
+                            {% if usage_log.status_type == "deleted" %}
+                            <span class="badge-status btn-delete">削除済</span>
+                            {% elif usage_log.status_type == "running" %}
+                            <span class="badge-status badge-on">運転中</span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
                     </tr>
+                    {% endfor %}
+                    {% else %}
                     <tr>
-                        <td>2025/12/22(月) 12:15</td>
-                        <td>太郎</td>
-                        <td>暖房</td>
-                        <td>2時間30分</td>
-                        <td>80円</td>
-                        <td>-</td>
+                        <td colspan="6">表示できる未確定記録はありません</td>
                     </tr>
-                    <tr>
-                        <td>2025/12/21(日) 21:00</td>
-                        <td>花子</td>
-                        <td>暖房</td>
-                        <td>5時間12分</td>
-                        <td>150円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/21(日) 08:45</td>
-                        <td>一郎</td>
-                        <td>ストーブ強</td>
-                        <td>1時間05分</td>
-                        <td>31円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/20(土) 19:20</td>
-                        <td>良子</td>
-                        <td>コタツ</td>
-                        <td>3時間15分</td>
-                        <td>28円</td>
-                        <td><button class="badge-status btn-delete">削除済</button></td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/20(土) 07:10</td>
-                        <td>太郎</td>
-                        <td>暖房</td>
-                        <td>1時間20分</td>
-                        <td>42円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/19(金) 22:00</td>
-                        <td>花子</td>
-                        <td>ストーブ弱</td>
-                        <td>2時間00分</td>
-                        <td>61円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/19(金) 17:30</td>
-                        <td>一郎</td>
-                        <td>PCデスクヒーター</td>
-                        <td>4時間30分</td>
-                        <td>35円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/18(木) 20:15</td>
-                        <td>良子</td>
-                        <td>暖房</td>
-                        <td>6時間00分</td>
-                        <td>172円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/18(木) 06:45</td>
-                        <td>太郎</td>
-                        <td>ストーブ強</td>
-                        <td>0時間45分</td>
-                        <td>22円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/17(水) 23:30</td>
-                        <td>花子</td>
-                        <td>コタツ</td>
-                        <td>2時間40分</td>
-                        <td>24円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/17(水) 18:00</td>
-                        <td>一郎</td>
-                        <td>暖房</td>
-                        <td>3時間20分</td>
-                        <td>95円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/16(火) 19:50</td>
-                        <td>良子</td>
-                        <td>ストーブ弱</td>
-                        <td>1時間15分</td>
-                        <td>38円</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td>2025/12/16(火) 07:20</td>
-                        <td>太郎</td>
-                        <td>暖房</td>
-                        <td>2時間10分</td>
-                        <td>68円</td>
-                        <td>-</td>
-                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>

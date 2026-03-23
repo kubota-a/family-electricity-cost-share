@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>確定済み電気料金一覧 - いえ電シェア</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #d88c8c;
+            --bg-color: #fdf8f8;
+            --sidebar-bg: #ffffff;
+            --text-main: #333;
+            --border-color: #eee;
+            --hover-row-color: #f1f7fc;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif; background-color: var(--bg-color); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* --- サイドバー（共通） --- */
+        .sidebar { width: 240px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+        .sidebar-header i { color: var(--primary-color); font-size: 1.2rem; }
+        .sidebar-header h1 { font-size: 1rem; line-height: 1.2; }
+        .nav-menu { flex-grow: 1; padding: 20px 0; }
+        .nav-item { padding: 12px 25px; cursor: pointer; display: block; text-decoration: none; color: var(--text-main); transition: 0.2s; font-weight: 500; }
+        .nav-item:hover { background: #fff5f5; color: var(--primary-color); }
+        .nav-item.active { border-left: 4px solid var(--primary-color); background: #fff5f5; color: var(--primary-color); }
+        .logout {
+            padding: 20px 25px;
+            border-top: 1px solid var(--border-color);
+            color: #888;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            background: transparent;
+            border-left: none;
+            border-right: none;
+            border-bottom: none;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        /* --- メインコンテンツ --- */
+        .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; max-width: 1200px; }
+
+        /* 見出し（電気料金確定画面の h2 と同じスタイル） */
+        .page-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; }
+
+        /* flashメッセージ（見出しの直下） */
+        .flash-message { padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85rem; text-align: center; border: 1px solid transparent; }
+        .flash-message.success { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
+        .flash-message.danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
+        
+        .header-section { margin-bottom: 25px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
+        .date-summary { font-size: 0.95rem; color: #666; margin-bottom: 10px; }
+        .price-summary { display: flex; align-items: baseline; gap: 20px; font-weight: bold; }
+        .price-summary .total { font-size: 1.8rem; }
+        .price-summary .unit-price { font-size: 1.2rem; color: #555; }
+
+        .section-title { font-size: 0.9rem; font-weight: bold; margin: 25px 0 15px; color: #666; }
+
+        /* --- カルーセル --- */
+        .carousel-container { margin-bottom: 30px; position: relative; }
+        .carousel-wrapper { 
+            display: flex; 
+            overflow-x: auto; 
+            gap: 12px; 
+            padding: 5px 0 15px 0; 
+            scrollbar-width: thin; 
+            scrollbar-color: #ddd transparent; 
+        }
+        .carousel-wrapper::-webkit-scrollbar { height: 6px; }
+        .carousel-wrapper::-webkit-scrollbar-track { background: transparent; }
+        .carousel-wrapper::-webkit-scrollbar-thumb { background: #ddd; border-radius: 10px; }
+        
+        .member-card { 
+            min-width: calc((100% - (12px * 5)) / 5.5); 
+            flex: 0 0 auto; 
+            height: 120px; 
+            border-radius: 16px; 
+            border: 1px solid var(--border-color); 
+            padding: 15px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            position: relative; 
+            transition: 0.2s; 
+        }
+        
+        .card-hanako { background-color: #fff0f3; }
+        .card-taro { background-color: #f0f4ff; }
+        .card-ichiro { background-color: #f1fcf0; }
+
+        .member-name { font-size: 1.3rem; font-weight: bold; margin-bottom: 8px; }
+        
+        .member-amount { 
+            background-color: #ffffff; 
+            width: 90%; 
+            padding: 8px 0; 
+            border-radius: 10px; 
+            text-align: center; 
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            color: var(--primary-color); 
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* 履歴テーブル */
+        .table-scroll-box { background: #fff; border-radius: 12px; border: 1px solid var(--border-color); overflow-y: auto; max-height: 500px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+        thead th { position: sticky; top: 0; background: #fff5f5; z-index: 10; padding: 15px; text-align: left; color: #884444; border-bottom: 2px solid var(--border-color); }
+        tbody tr { cursor: pointer; transition: background 0.2s; }
+        
+        @media (hover: hover) {
+            tbody tr:hover { background-color: var(--hover-row-color); }
+        }
+        tbody tr.selected-row { background-color: var(--hover-row-color) !important; }
+        
+        td { padding: 15px; border-bottom: 1px solid var(--border-color); }
+        .text-right { text-align: right; }
+
+        /* --- レスポンシブ --- */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; position: relative; border-bottom: 1px solid var(--border-color); }
+            .nav-menu { display: flex; overflow-x: auto; padding: 0; }
+            .nav-item { padding: 15px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
+            .nav-item.active { border-bottom: 3px solid var(--primary-color); }
+            .main-content { margin-left: 0; padding: 20px; }
+            .member-card { min-width: 140px; }
+            .price-summary { flex-direction: column; gap: 5px; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <a href="{{ url_for('index') }}" class="sidebar-header">
+            <i class="fas fa-home"></i>
+            <h1>いえ電シェア<br>管理者パネル</h1>
+        </a>
+        <nav class="nav-menu">
+            <a href="{{ url_for('index') }}" class="nav-item">HOME</a>
+            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
+            <a href="{{ url_for('admin_devices') }}" class="nav-item">機器</a>
+            <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item">電気料金の確定</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item active">確定済の電気料金</a>
+        </nav>
+        <form action="{{ url_for('logout') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="logout">
+                <i class="fas fa-sign-out-alt"></i> ログアウト
+            </button>
+        </form>
+    </aside>
+
+    <main class="main-content">
+
+        <!-- 見出し -->
+        <h2 class="page-title">確定済の電気料金</h2>
+
+        <!-- flashメッセージ（見出し直下） -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% set category, message = messages[-1] %}
+        <div class="flash-message {{ 'danger' if category == 'danger' else 'success' }}">{{ message }}</div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- 確定日・請求総額 -->
+        <div class="header-section">
+            <div class="date-summary">確定日 2025/12/21<br>2025/10/22〜2025/11/19利用分</div>
+            <div class="price-summary">
+                <span class="total">請求総額　¥ 6,860</span>
+                <span class="unit-price">/ 単価　28.5円/kWh</span>
+            </div>
+        </div>
+
+        <div class="section-title">メンバーごとのシェア金額</div>
+        <div class="carousel-container">
+            <div class="carousel-wrapper" id="memberCarousel">
+                <div class="member-card card-hanako">
+                    <div class="member-name">花子</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-taro">
+                    <div class="member-name">太郎</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+                <div class="member-card card-ichiro">
+                    <div class="member-name">一郎</div>
+                    <div class="member-amount">〇〇〇〇円</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">電気料金の確定履歴</div>
+        <div class="table-scroll-box">
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>検針日（利用期間）</th>
+                        <th>確定日</th>
+                        <th>単価</th>
+                        <th class="text-right">請求総額</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr onclick="selectRow(this)">
+                        <td>2025/10/22〜2025/11/19</td>
+                        <td>2025/12/21</td>
+                        <td>28.5円/kWh</td>
+                        <td class="text-right">¥ 6,860</td>
+                    </tr>
+                    <tr onclick="selectRow(this)">
+                        <td>2025/09/20〜2025/10/21</td>
+                        <td>2025/11/23</td>
+                        <td>29.2円/kWh</td>
+                        <td class="text-right">¥ 7,200</td>
+                    </tr>
+                    <tr onclick="selectRow(this)">
+                        <td>2025/08/21〜2025/09/19</td>
+                        <td>2025/10/30</td>
+                        <td>28.8円/kWh</td>
+                        <td class="text-right">¥ 14,600</td>
+                    </tr>
+                    <tr onclick="selectRow(this)">
+                        <td>2025/07/22〜2025/08/20</td>
+                        <td>2025/09/21</td>
+                        <td>28.2円/kWh</td>
+                        <td class="text-right">¥ 15,300</td>
+                    </tr>
+                    <tr onclick="selectRow(this)">
+                        <td>2025/06/20〜2025/07/21</td>
+                        <td>2025/08/23</td>
+                        <td>28.0円/kWh</td>
+                        <td class="text-right">¥ 9,400</td>
+                    </tr>
+                    <tr onclick="selectRow(this)">
+                        <td>2025/05/21〜2025/06/19</td>
+                        <td>2025/07/20</td>
+                        <td>27.5円/kWh</td>
+                        <td class="text-right">¥ 8,800</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </main>
+
+    <script>
+        function selectRow(row) {
+            const rows = document.querySelectorAll('#historyTable tbody tr');
+            rows.forEach(r => r.classList.remove('selected-row'));
+            row.classList.add('selected-row');
+        }
+    </script>
+</body>
+</html>

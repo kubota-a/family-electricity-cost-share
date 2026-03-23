@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import joinedload
 from zoneinfo import ZoneInfo
 import os
+import re
 
 from models import db, AppSettings, Device, DeviceUsageLog, FinalizedBill, FinalizedBillMember, User
 
@@ -166,6 +167,31 @@ def calculate_estimated_cost_yen(usage_log, estimated_unit_price):
     usage_hours = usage_seconds / Decimal("3600")
     estimated_cost = Decimal(str(usage_log.device.power_kw)) * usage_hours * estimated_unit_price
     return int(estimated_cost.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def format_date_for_jst_display(dt_value):
+    """UTC日時を日本時間へ変換し、日付(YYYY/MM/DD)で表示する。"""
+    utc_aware_dt = ensure_utc_aware(dt_value)
+    return utc_aware_dt.astimezone(TOKYO_TIMEZONE).strftime("%Y/%m/%d")
+
+
+def format_duration_for_display(start_time, end_time):
+    """使用時間を「◯時間◯◯分」形式で返す。"""
+    if start_time is None or end_time is None:
+        return "-"
+
+    start_time_utc = ensure_utc_aware(start_time)
+    end_time_utc = ensure_utc_aware(end_time)
+    total_seconds = int((end_time_utc - start_time_utc).total_seconds())
+    if total_seconds < 0:
+        return "-"
+
+    total_minutes = total_seconds // 60
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    if hours == 0:
+        return f"{minutes}分"
+    return f"{hours}時間{minutes:02d}分"
 
 
 @app.route("/")
@@ -870,12 +896,393 @@ def user_share_amounts():
     return render_template("user_share_amounts.html")
 
 
-@app.route("/admin/top")
+@app.route("/admin/top", methods=["GET", "POST"])
 @login_required
 @admin_required
 def admin_top():
     """管理者用トップ画面を表示する。"""
-    return render_template("admin_top.html")
+    selected_price_mode = "manual"
+    manual_input_override = None
+
+    # Step 3/4: 仮単価更新
+    if request.method == "POST":
+        has_post_error = False
+        update_mode = request.form.get("estimated_price_mode", "manual")
+        selected_price_mode = update_mode
+        manual_price_raw = request.form.get("estimated_unit_price", "").strip()
+        manual_input_override = manual_price_raw
+
+        if update_mode == "latest_three_average":
+            latest_three_for_update = (
+                FinalizedBill.query
+                .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+                .limit(3)
+                .all()
+            )
+            if not latest_three_for_update:
+                flash("確定済み電気料金がないため、直近3件平均では更新できません。", "danger")
+                has_post_error = True
+            else:
+                unit_price_sum = sum(
+                    Decimal(str(finalized_bill.unit_price))
+                    for finalized_bill in latest_three_for_update
+                )
+                new_estimated_unit_price = unit_price_sum / Decimal(len(latest_three_for_update))
+        elif update_mode == "manual":
+            if not manual_price_raw:
+                flash("任意の金額を入力してください。", "danger")
+                has_post_error = True
+
+            # 任意の金額は「半角数字 + 小数第1位まで」のみ許可する
+            elif re.fullmatch(r"\d+(\.\d)?", manual_price_raw) is None:
+                flash("任意の金額は小数第1位までの数値で入力してください。", "danger")
+                has_post_error = True
+            else:
+                try:
+                    new_estimated_unit_price = Decimal(manual_price_raw)
+                except InvalidOperation:
+                    flash("任意の金額は数値で入力してください。", "danger")
+                    has_post_error = True
+
+                if not has_post_error and new_estimated_unit_price <= 0:
+                    flash("任意の金額は0より大きい値を入力してください。", "danger")
+                    has_post_error = True
+        else:
+            flash("仮単価の更新方法が不正です。", "danger")
+            has_post_error = True
+
+        if not has_post_error:
+            app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
+            if app_settings is None:
+                app_settings = AppSettings(estimated_unit_price=new_estimated_unit_price)
+                db.session.add(app_settings)
+            else:
+                app_settings.estimated_unit_price = new_estimated_unit_price
+
+            try:
+                db.session.commit()
+            except Exception:
+                app.logger.exception("admin_top: 仮単価更新時に例外が発生しました")
+                db.session.rollback()
+                flash("仮単価の更新に失敗しました。", "danger")
+            else:
+                flash("仮単価を更新しました。", "success")
+                return redirect(url_for("admin_top"))
+
+    # 最新の確定済み電気料金を取得し、未確定期間の開始日時を算出する
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+    if latest_finalized_bill is not None:
+        latest_created_display = format_date_for_jst_display(latest_finalized_bill.created_at)
+        latest_period_display = (
+            f"{format_date_for_jst_display(latest_finalized_bill.period_start)}"
+            f"〜{format_date_for_jst_display(latest_finalized_bill.period_end)}利用分"
+        )
+
+        latest_period_end_utc = ensure_utc_aware(latest_finalized_bill.period_end)
+        unfinalized_start_tokyo = (
+            latest_period_end_utc.astimezone(TOKYO_TIMEZONE)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_utc = unfinalized_start_tokyo.astimezone(timezone.utc)
+        unfinalized_start_display = unfinalized_start_tokyo.strftime("%Y/%m/%d")
+        unfinalized_start_date_tokyo = unfinalized_start_tokyo.date()
+    else:
+        latest_created_display = "- - - - -"
+        latest_period_display = "- - - - -"
+        unfinalized_start_utc = None
+        unfinalized_start_display = "- - - - -"
+        unfinalized_start_date_tokyo = None
+
+    # メンバー選択肢とカード対象は role='user' のみ
+    user_members = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+    user_member_ids = {member.id for member in user_members}
+
+    # 未確定記録一覧の絞り込み入力を受け取る（Step 5）
+    selected_member_id = request.args.get("member_id", "").strip()
+    filter_start_date = request.args.get("start_date", "").strip()
+    filter_end_date = request.args.get("end_date", "").strip()
+    selected_member_id_int = None
+    filter_start_utc = None
+    filter_end_utc = None
+    has_filter_error = False
+
+    now_tokyo = datetime.now(timezone.utc).astimezone(TOKYO_TIMEZONE)
+    today_tokyo_date = now_tokyo.date()
+
+    if selected_member_id:
+        try:
+            selected_member_id_int = int(selected_member_id)
+        except ValueError:
+            flash("メンバー絞り込みの指定が不正です。", "danger")
+            has_filter_error = True
+            selected_member_id_int = None
+        else:
+            if selected_member_id_int not in user_member_ids:
+                flash("メンバー絞り込みの指定が不正です。", "danger")
+                has_filter_error = True
+                selected_member_id_int = None
+
+    filter_start_date_obj = None
+    filter_end_date_obj = None
+    if filter_start_date:
+        try:
+            filter_start_date_obj = datetime.strptime(filter_start_date, "%Y-%m-%d").date()
+        except ValueError:
+            flash("開始日の形式が不正です。", "danger")
+            has_filter_error = True
+    if filter_end_date:
+        try:
+            filter_end_date_obj = datetime.strptime(filter_end_date, "%Y-%m-%d").date()
+        except ValueError:
+            flash("終了日の形式が不正です。", "danger")
+            has_filter_error = True
+
+    # 対象期間外入力をサーバー側で検証する（開始日は未確定期間開始日以上、終了日は今日以下）
+    if filter_start_date_obj is not None and unfinalized_start_date_tokyo is not None:
+        if filter_start_date_obj < unfinalized_start_date_tokyo:
+            flash("開始日は未確定期間の開始日以降を指定してください。", "danger")
+            has_filter_error = True
+    if filter_end_date_obj is not None and unfinalized_start_date_tokyo is not None:
+        if filter_end_date_obj < unfinalized_start_date_tokyo:
+            flash("終了日は未確定期間の開始日以降を指定してください。", "danger")
+            has_filter_error = True
+    if filter_start_date_obj is not None and filter_start_date_obj > today_tokyo_date:
+        flash("開始日は本日以前を指定してください。", "danger")
+        has_filter_error = True
+    if filter_end_date_obj is not None and filter_end_date_obj > today_tokyo_date:
+        flash("終了日は本日以前を指定してください。", "danger")
+        has_filter_error = True
+    if filter_start_date_obj is not None and filter_end_date_obj is not None:
+        if filter_start_date_obj > filter_end_date_obj:
+            flash("開始日は終了日以前を指定してください。", "danger")
+            has_filter_error = True
+
+    if not has_filter_error:
+        if filter_start_date_obj is not None:
+            start_tokyo_dt = datetime(
+                filter_start_date_obj.year,
+                filter_start_date_obj.month,
+                filter_start_date_obj.day,
+                0,
+                0,
+                0,
+                tzinfo=TOKYO_TIMEZONE,
+            )
+            filter_start_utc = start_tokyo_dt.astimezone(timezone.utc)
+        if filter_end_date_obj is not None:
+            end_tokyo_dt = datetime(
+                filter_end_date_obj.year,
+                filter_end_date_obj.month,
+                filter_end_date_obj.day,
+                23,
+                59,
+                59,
+                tzinfo=TOKYO_TIMEZONE,
+            )
+            filter_end_utc = end_tokyo_dt.astimezone(timezone.utc)
+
+    # 仮単価表示は app_settings の先頭1件を採用する
+    app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
+    estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
+    if estimated_unit_price is not None:
+        current_estimated_unit_price_display = str(
+            Decimal(str(estimated_unit_price)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        )
+        current_estimated_unit_price_input = str(
+            Decimal(str(estimated_unit_price)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        )
+    else:
+        current_estimated_unit_price_display = "- - -"
+        current_estimated_unit_price_input = ""
+
+    if manual_input_override is not None:
+        current_estimated_unit_price_input = manual_input_override
+
+    # 直近3件の確定単価平均値（表示用）
+    latest_three_finalized_bills = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .limit(3)
+        .all()
+    )
+    if latest_three_finalized_bills:
+        total_unit_price = sum(
+            Decimal(str(finalized_bill.unit_price))
+            for finalized_bill in latest_three_finalized_bills
+        )
+        average_unit_price = total_unit_price / Decimal(len(latest_three_finalized_bills))
+        latest_three_avg_unit_price_display = str(
+            average_unit_price.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        )
+    else:
+        latest_three_avg_unit_price_display = "- - -"
+
+    # 未確定期間の終了済み記録をメンバーごとに集計する（運転中は除外）
+    ended_logs_query = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .join(User, Device.user_id == User.id)
+        .options(joinedload(DeviceUsageLog.device).joinedload(Device.user))
+        .filter(
+            User.role == "user",
+            DeviceUsageLog.end_time.isnot(None),
+        )
+    )
+    if unfinalized_start_utc is not None:
+        ended_logs_query = ended_logs_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+    ended_logs = (
+        ended_logs_query
+        .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
+        .all()
+    )
+
+    member_summaries = {}
+    for member in user_members:
+        member_summaries[member.id] = {
+            "user": member,
+            "total_estimated_cost_yen": 0,
+            "latest_start_time": None,
+            "has_cost_data": estimated_unit_price is not None,
+        }
+
+    for usage_log in ended_logs:
+        owner_user = usage_log.device.user
+        if owner_user is None or owner_user.id not in member_summaries:
+            continue
+
+        member_summary = member_summaries[owner_user.id]
+        estimated_cost_yen = calculate_estimated_cost_yen(usage_log, estimated_unit_price)
+        if estimated_cost_yen is None:
+            member_summary["has_cost_data"] = False
+        else:
+            member_summary["total_estimated_cost_yen"] += estimated_cost_yen
+
+        current_latest = member_summary["latest_start_time"]
+        usage_start_utc = ensure_utc_aware(usage_log.start_time)
+        if current_latest is None or usage_start_utc > current_latest:
+            member_summary["latest_start_time"] = usage_start_utc
+
+    member_estimate_cards = []
+    for member_summary in member_summaries.values():
+        member = member_summary["user"]
+        if member_summary["has_cost_data"]:
+            amount_display = f"{member_summary['total_estimated_cost_yen']:,}円"
+        else:
+            amount_display = "- - -"
+
+        member_estimate_cards.append(
+            {
+                "user_id": member.id,
+                "name": member.name,
+                "amount_display": amount_display,
+                "latest_start_time": member_summary["latest_start_time"],
+                "color": member.color,
+            }
+        )
+
+    # 未確定期間内の最新開始日時が新しい順（該当なしは後ろ）
+    member_estimate_cards.sort(
+        key=lambda item: (
+            item["latest_start_time"] is not None,
+            item["latest_start_time"] or datetime.min.replace(tzinfo=timezone.utc),
+        ),
+        reverse=True,
+    )
+
+    # 未確定記録一覧（論理削除済みも含める）
+    unfinalized_logs_query = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .join(User, Device.user_id == User.id)
+        .options(joinedload(DeviceUsageLog.device).joinedload(Device.user))
+        .filter(User.role == "user")
+    )
+    if unfinalized_start_utc is not None:
+        unfinalized_logs_query = unfinalized_logs_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
+    if not has_filter_error and selected_member_id_int is not None:
+        unfinalized_logs_query = unfinalized_logs_query.filter(Device.user_id == selected_member_id_int)
+    if not has_filter_error and filter_start_utc is not None:
+        unfinalized_logs_query = unfinalized_logs_query.filter(DeviceUsageLog.start_time >= filter_start_utc)
+    if not has_filter_error and filter_end_utc is not None:
+        unfinalized_logs_query = unfinalized_logs_query.filter(DeviceUsageLog.start_time <= filter_end_utc)
+
+    raw_unfinalized_logs = (
+        unfinalized_logs_query
+        .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
+        .all()
+    )
+
+    unfinalized_usage_logs = []
+    for usage_log in raw_unfinalized_logs:
+        if usage_log.deleted_at is not None:
+            status_type = "deleted"
+        elif usage_log.end_time is None:
+            status_type = "running"
+        else:
+            status_type = "normal"
+
+        if usage_log.end_time is None:
+            duration_display = "-"
+            estimated_cost_display = "-"
+        else:
+            duration_display = format_duration_for_display(usage_log.start_time, usage_log.end_time)
+            estimated_cost_yen = calculate_estimated_cost_yen(usage_log, estimated_unit_price)
+            estimated_cost_display = f"{estimated_cost_yen:,}円" if estimated_cost_yen is not None else "-"
+
+        unfinalized_usage_logs.append(
+            {
+                "id": usage_log.id,
+                "start_time_display": format_datetime_for_jst_display(usage_log.start_time),
+                "member_name": usage_log.device.user.name,
+                "device_name": usage_log.device.name,
+                "duration_display": duration_display,
+                "estimated_cost_display": estimated_cost_display,
+                "status_type": status_type,
+            }
+        )
+
+    return render_template(
+        "admin_top.html",
+        latest_created_display=latest_created_display,
+        latest_period_display=latest_period_display,
+        unfinalized_start_display=unfinalized_start_display,
+        current_estimated_unit_price_display=current_estimated_unit_price_display,
+        current_estimated_unit_price_input=current_estimated_unit_price_input,
+        latest_three_avg_unit_price_display=latest_three_avg_unit_price_display,
+        user_members=user_members,
+        member_estimate_cards=member_estimate_cards,
+        unfinalized_usage_logs=unfinalized_usage_logs,
+        selected_member_id=selected_member_id,
+        filter_start_date=filter_start_date,
+        filter_end_date=filter_end_date,
+        selected_price_mode=selected_price_mode,
+    )
+
+
+@app.route("/admin/bills/confirm", methods=["GET"])
+@login_required
+@admin_required
+def admin_bill_confirm():
+    """管理者用の電気料金確定画面（Step 1 の最小実装）を表示する。"""
+    return render_template("admin_bill_confirm.html")
+
+
+@app.route("/admin/bills", methods=["GET"])
+@login_required
+@admin_required
+def admin_bills():
+    """管理者用の確定済み電気料金一覧画面（Step 1 の最小実装）を表示する。"""
+    return render_template("admin_bills.html")
 
 
 @app.route("/admin/users", methods=["GET", "POST"])
