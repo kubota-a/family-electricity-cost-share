@@ -895,11 +895,54 @@ def user_share_amounts():
     return render_template("user_share_amounts.html")
 
 
-@app.route("/admin/top")
+@app.route("/admin/top", methods=["GET", "POST"])
 @login_required
 @admin_required
 def admin_top():
     """管理者用トップ画面を表示する。"""
+    # Step 3: 仮単価更新（最小実装）
+    if request.method == "POST":
+        update_mode = request.form.get("estimated_price_mode", "manual")
+
+        if update_mode == "latest_three_average":
+            latest_three_for_update = (
+                FinalizedBill.query
+                .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+                .limit(3)
+                .all()
+            )
+            if not latest_three_for_update:
+                flash("確定済み電気料金がないため、直近3件平均では更新できません。", "danger")
+                return redirect(url_for("admin_top"))
+
+            unit_price_sum = sum(
+                Decimal(str(finalized_bill.unit_price))
+                for finalized_bill in latest_three_for_update
+            )
+            new_estimated_unit_price = unit_price_sum / Decimal(len(latest_three_for_update))
+        else:
+            manual_price_raw = request.form.get("estimated_unit_price", "").strip()
+            if not manual_price_raw:
+                flash("任意の金額を入力してください。", "danger")
+                return redirect(url_for("admin_top"))
+
+            try:
+                new_estimated_unit_price = Decimal(manual_price_raw)
+            except InvalidOperation:
+                flash("任意の金額は数値で入力してください。", "danger")
+                return redirect(url_for("admin_top"))
+
+        app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
+        if app_settings is None:
+            app_settings = AppSettings(estimated_unit_price=new_estimated_unit_price)
+            db.session.add(app_settings)
+        else:
+            app_settings.estimated_unit_price = new_estimated_unit_price
+
+        db.session.commit()
+        flash("仮単価を更新しました。", "success")
+        return redirect(url_for("admin_top"))
+
     # 最新の確定済み電気料金を取得し、未確定期間の開始日時を算出する
     latest_finalized_bill = (
         FinalizedBill.query
@@ -934,8 +977,12 @@ def admin_top():
         current_estimated_unit_price_display = str(
             Decimal(str(estimated_unit_price)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
         )
+        current_estimated_unit_price_input = str(
+            Decimal(str(estimated_unit_price)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        )
     else:
         current_estimated_unit_price_display = "- - -"
+        current_estimated_unit_price_input = ""
 
     # 直近3件の確定単価平均値（表示用）
     latest_three_finalized_bills = (
@@ -1088,11 +1135,13 @@ def admin_top():
         latest_period_display=latest_period_display,
         unfinalized_start_display=unfinalized_start_display,
         current_estimated_unit_price_display=current_estimated_unit_price_display,
+        current_estimated_unit_price_input=current_estimated_unit_price_input,
         latest_three_avg_unit_price_display=latest_three_avg_unit_price_display,
         user_members=user_members,
         member_estimate_cards=member_estimate_cards,
         unfinalized_usage_logs=unfinalized_usage_logs,
         selected_member_id="",
+        selected_price_mode="manual",
     )
 
 

@@ -197,21 +197,22 @@
                 <button type="button" class="btn-primary" onclick="location.href='{{ url_for('admin_bill_confirm') }}'">確定させる</button>
             </div>
 
-            <div class="card unit-price-box">
-                <button type="button" class="btn-save">保存</button>
+            <form class="card unit-price-box" action="{{ url_for('admin_top') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-save">保存</button>
                 <div class="section-title">現在の仮単価</div>
                 <div class="price-display">{{ current_estimated_unit_price_display }}<span style="font-size: 0.9rem;">円/kWh</span></div>
                 <div class="radio-group">
                     <label class="radio-item">
-                        <span><input type="radio" name="price" checked> 任意の金額</span>
-                        <span><input type="text" value="{{ current_estimated_unit_price_display }}"> 円/kWh</span>
+                        <span><input type="radio" name="estimated_price_mode" value="manual" {% if selected_price_mode == "manual" %}checked{% endif %}> 任意の金額</span>
+                        <span><input type="text" name="estimated_unit_price" value="{{ current_estimated_unit_price_input }}"> 円/kWh</span>
                     </label>
                     <label class="radio-item">
-                        <span><input type="radio" name="price"> 直近3件の確定単価平均値</span>
+                        <span><input type="radio" name="estimated_price_mode" value="latest_three_average" {% if selected_price_mode == "latest_three_average" %}checked{% endif %}> 直近3件の確定単価平均値</span>
                         <span>{{ latest_three_avg_unit_price_display }}円/kWh</span>
                     </label>
                 </div>
-            </div>
+            </form>
         </div>
 
         <div class="section-title">{{ unfinalized_start_display }}以降の機器使用料金目安</div>
