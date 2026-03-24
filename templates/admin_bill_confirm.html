@@ -297,7 +297,9 @@
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                 {% set category, message = messages[-1] %}
-                <div class="flash-message {{ 'danger' if category == 'danger' else 'success' }}">{{ message }}</div>
+                <div id="confirmFlashMessage" class="flash-message {{ 'danger' if category == 'danger' else 'success' }}">{{ message }}</div>
+                {% else %}
+                <div id="confirmFlashMessage" class="flash-message danger" style="display: none;"></div>
                 {% endif %}
                 {% endwith %}
                 
@@ -407,6 +409,8 @@
         let previewReady = {{ 'true' if preview_ready else 'false' }};
         let previewRequestSerial = 0;
         let previewDebounceTimer = null;
+        let latestPreviewErrorMessage = null;
+        const confirmFlashMessage = document.getElementById('confirmFlashMessage');
 
         function openModal(id) {
             document.getElementById(id).classList.add('is-open');
@@ -458,6 +462,22 @@
             previewReady = false;
         }
 
+        function showDangerFlashMessage(message) {
+            confirmFlashMessage.className = 'flash-message danger';
+            confirmFlashMessage.textContent = message;
+            confirmFlashMessage.style.display = 'block';
+            confirmFlashMessage.dataset.clientMessage = 'true';
+        }
+
+        function hideFlashMessageIfClientShown() {
+            if (confirmFlashMessage.dataset.clientMessage !== 'true') {
+                return;
+            }
+            confirmFlashMessage.style.display = 'none';
+            confirmFlashMessage.textContent = '';
+            delete confirmFlashMessage.dataset.clientMessage;
+        }
+
         function renderPreviewCards(previewMembers) {
             const cardHtml = previewMembers.map((member) => {
                 return `
@@ -477,6 +497,7 @@
         async function requestAutoPreview() {
             if (!hasRequiredInput()) {
                 resetPreviewDisplay();
+                latestPreviewErrorMessage = null;
                 return;
             }
 
@@ -493,6 +514,9 @@
                     return;
                 }
                 if (!response.ok || !data.ok) {
+                    latestPreviewErrorMessage = (data.errors && data.errors.length > 0)
+                        ? data.errors[0]
+                        : '入力内容を確認してください。';
                     resetPreviewDisplay();
                     return;
                 }
@@ -505,8 +529,11 @@
                 modalUnitPrice.textContent = data.modal_unit_price_display;
                 renderPreviewCards(data.preview_members);
                 previewReady = true;
+                latestPreviewErrorMessage = null;
+                hideFlashMessageIfClientShown();
             } catch (error) {
                 if (currentSerial === previewRequestSerial) {
+                    latestPreviewErrorMessage = 'プレビューの更新に失敗しました。入力内容を確認してください。';
                     resetPreviewDisplay();
                 }
             }
@@ -521,7 +548,7 @@
 
         openConfirmModalButton.addEventListener('click', () => {
             if (!previewReady) {
-                alert('入力内容を確認し、プレビュー表示が完了してから確定してください。');
+                showDangerFlashMessage(latestPreviewErrorMessage || '入力内容を確認し、必須項目を正しく入力してください。');
                 return;
             }
             openModal('confirmPriceModal');
