@@ -1273,8 +1273,60 @@ def admin_top():
 @login_required
 @admin_required
 def admin_bill_confirm():
-    """管理者用の電気料金確定画面（Step 1 の最小実装）を表示する。"""
-    return render_template("admin_bill_confirm.html")
+    """管理者用の電気料金確定画面（Step 1: GET表示）を表示する。"""
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+
+    # 最新の確定済み情報（右上表示）を作成
+    if latest_finalized_bill is not None:
+        latest_created_display = format_date_for_jst_display(latest_finalized_bill.created_at)
+        latest_period_display = (
+            f"{format_date_for_jst_display(latest_finalized_bill.period_start)}"
+            f"～{format_date_for_jst_display(latest_finalized_bill.period_end)}利用分"
+        )
+
+        # 通常時の開始日は、最新確定期間の終了日の翌日（日本時間）
+        latest_period_end_utc = ensure_utc_aware(latest_finalized_bill.period_end)
+        fixed_period_start_tokyo = (
+            latest_period_end_utc.astimezone(TOKYO_TIMEZONE)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_display = fixed_period_start_tokyo.strftime("%Y/%m/%d")
+        unfinalized_notice_message = f"{unfinalized_start_display}以降の締め日と電気料金が未確定です。"
+        fixed_period_start_input = fixed_period_start_tokyo.strftime("%Y-%m-%d")
+        is_initial_confirm = False
+    else:
+        # 初回確定時は開始日を手入力させる（最新確定表示はプレースホルダー）
+        latest_created_display = "- - - - / - - / - -"
+        latest_period_display = "- - - - / - - / - - ～ - - - - / - - / - - 利用分"
+        unfinalized_start_display = "- - - - / - - / - -"
+        unfinalized_notice_message = "初回確定の開始日を入力してください"
+        fixed_period_start_input = ""
+        is_initial_confirm = True
+
+    # プレビュー対象は一般ユーザーのみ（未入力時の並び順）
+    preview_members = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+
+    return render_template(
+        "admin_bill_confirm.html",
+        latest_created_display=latest_created_display,
+        latest_period_display=latest_period_display,
+        unfinalized_start_display=unfinalized_start_display,
+        unfinalized_notice_message=unfinalized_notice_message,
+        is_initial_confirm=is_initial_confirm,
+        fixed_period_start_input=fixed_period_start_input,
+        preview_members=preview_members,
+        unit_price_display="- - 円",
+    )
 
 
 @app.route("/admin/bills", methods=["GET"])
