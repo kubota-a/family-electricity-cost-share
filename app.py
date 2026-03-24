@@ -432,17 +432,42 @@ def calculate_bill_confirm_preview(
         "preview_members": build_empty_bill_preview_members(user_members),
     }
 
+    # 期間整合性チェック用に、毎回最新の確定済み請求を再確認する
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+    expected_period_start_utc = None
+    if latest_finalized_bill is not None:
+        latest_period_end_utc = ensure_utc_aware(latest_finalized_bill.period_end)
+        expected_period_start_utc = (
+            latest_period_end_utc.astimezone(TOKYO_TIMEZONE)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        ).astimezone(timezone.utc)
+
+    now_tokyo_date = datetime.now(timezone.utc).astimezone(TOKYO_TIMEZONE).date()
+
     period_start_date = parse_date_input(form_period_start) if is_initial_confirm else None
     if is_initial_confirm and not form_period_start:
         result["errors"].append("開始日を入力してください")
     elif is_initial_confirm and period_start_date is None:
-        result["errors"].append("開始日は YYYY-MM-DD 形式で入力してください")
+        result["errors"].append("開始日の入力形式が正しくありません")
+    elif (
+        is_initial_confirm
+        and period_start_date is not None
+        and period_start_date > now_tokyo_date
+    ):
+        result["errors"].append("開始日に未来の日付は指定できません")
 
     period_end_date = parse_date_input(form_period_end)
     if not form_period_end:
         result["errors"].append("終了日を入力してください")
     elif period_end_date is None:
-        result["errors"].append("終了日は YYYY-MM-DD 形式で入力してください")
+        result["errors"].append("終了日の入力形式が正しくありません")
+    elif period_end_date > now_tokyo_date:
+        result["errors"].append("終了日に未来の日付は指定できません")
 
     billing_amount = parse_decimal_input(form_billing_amount)
     if not form_billing_amount:
@@ -479,19 +504,61 @@ def calculate_bill_confirm_preview(
     ):
         result["errors"].append("終了日は開始日以降の日付を入力してください")
 
+    if is_initial_confirm and expected_period_start_utc is not None:
+        result["errors"].append("最新の確定状態が更新されたため、画面を再読み込みしてください")
+
     period_start_utc = None
     period_end_utc = None
     if not result["errors"] and period_end_date is not None:
         if is_initial_confirm:
             period_start_utc = convert_tokyo_date_to_utc_start(period_start_date)
         else:
-            period_start_utc = fixed_period_start_utc
+            period_start_utc = expected_period_start_utc or fixed_period_start_utc
+            if period_start_utc is None:
+                result["errors"].append("開始日を確定できません。画面を再読み込みしてください")
         period_end_utc = convert_tokyo_date_to_utc_end(period_end_date)
 
         if period_start_utc is not None and period_end_utc < period_start_utc:
             result["errors"].append("終了日は開始日以降の日付を入力してください")
 
+    # 期間飛ばし禁止（通常時の開始日は常に最新確定日の翌日）
+    if (
+        not result["errors"]
+        and not is_initial_confirm
+        and expected_period_start_utc is not None
+        and period_start_utc != expected_period_start_utc
+    ):
+        result["errors"].append("期間を飛ばして確定することはできません")
+
     if result["errors"]:
+        return result
+
+    # 同一期間の二重確定を禁止する
+    duplicate_bill = (
+        FinalizedBill.query
+        .filter(FinalizedBill.period_start == period_start_utc)
+        .filter(FinalizedBill.period_end == period_end_utc)
+        .first()
+    )
+    if duplicate_bill is not None:
+        result["errors"].append("同じ利用期間の電気料金はすでに確定済みです")
+        return result
+
+    # 対象期間に運転中記録がある場合は確定不可
+    has_running_log = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .join(User, Device.user_id == User.id)
+        .filter(DeviceUsageLog.deleted_at.is_(None))
+        .filter(DeviceUsageLog.end_time.is_(None))
+        .filter(DeviceUsageLog.start_time >= period_start_utc)
+        .filter(DeviceUsageLog.start_time <= period_end_utc)
+        .filter(User.role == "user")
+        .first()
+        is not None
+    )
+    if has_running_log:
+        result["errors"].append("運転中の機器がある期間の電気料金は確定できません")
         return result
 
     unit_price = ((billing_amount - base_fee) / usage_kwh).quantize(
@@ -500,7 +567,7 @@ def calculate_bill_confirm_preview(
     )
     result["unit_price_display"] = f"{format(unit_price, '.1f')}円/kWh"
 
-    calculated_cards, preview_error, _ = build_bill_preview_cards(
+    calculated_cards, preview_error, total_device_usage_amount = build_bill_preview_cards(
         user_members=user_members,
         period_start_utc=period_start_utc,
         period_end_utc=period_end_utc,
@@ -509,6 +576,10 @@ def calculate_bill_confirm_preview(
     )
     if preview_error is not None:
         result["errors"].append(preview_error)
+        return result
+
+    if billing_amount < Decimal(total_device_usage_amount):
+        result["errors"].append("請求総額が機器使用料金合計を下回るため確定できません")
         return result
 
     result["preview_members"] = calculated_cards
@@ -1644,8 +1715,7 @@ def admin_bill_confirm():
             form_usage_kwh=form_usage_kwh,
         )
         if preview_result["errors"]:
-            for message in preview_result["errors"]:
-                flash(message, "danger")
+            flash(preview_result["errors"][0], "danger")
 
     return render_template(
         "admin_bill_confirm.html",
