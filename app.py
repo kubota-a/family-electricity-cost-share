@@ -1,4 +1,4 @@
-﻿from flask import Flask, flash, redirect, render_template, request, url_for
+﻿from flask import Flask, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -192,6 +192,335 @@ def format_duration_for_display(start_time, end_time):
     if hours == 0:
         return f"{minutes}分"
     return f"{hours}時間{minutes:02d}分"
+
+
+def parse_date_input(value):
+    """date入力(YYYY-MM-DD)を date オブジェクトへ変換する。"""
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_decimal_input(value):
+    """カンマ付き数値文字列を Decimal に変換する。"""
+    normalized = (value or "").replace(",", "").strip()
+    if not normalized:
+        return None
+    try:
+        return Decimal(normalized)
+    except InvalidOperation:
+        return None
+
+
+def convert_tokyo_date_to_utc_start(date_value):
+    """日本時間の日付の00:00:00をUTC aware datetimeへ変換する。"""
+    return datetime(
+        date_value.year,
+        date_value.month,
+        date_value.day,
+        0,
+        0,
+        0,
+        tzinfo=TOKYO_TIMEZONE,
+    ).astimezone(timezone.utc)
+
+
+def convert_tokyo_date_to_utc_end(date_value):
+    """日本時間の日付の23:59:59をUTC aware datetimeへ変換する。"""
+    return datetime(
+        date_value.year,
+        date_value.month,
+        date_value.day,
+        23,
+        59,
+        59,
+        tzinfo=TOKYO_TIMEZONE,
+    ).astimezone(timezone.utc)
+
+
+def format_decimal_for_display(value):
+    """Decimalを表示用の最小表記へ整形する。"""
+    if value is None:
+        return ""
+    text = format(Decimal(str(value)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def format_yen_for_display(value):
+    """円表示用（カンマ区切り）へ整形する。"""
+    yen_value = int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return f"{yen_value:,}円"
+
+
+def build_bill_preview_cards(user_members, period_start_utc, period_end_utc, unit_price, billing_amount):
+    """対象期間の終了済み記録から、メンバー別プレビュー金額を計算する。"""
+    if not user_members:
+        return None, "一般ユーザーがいないためプレビューを計算できません。", None
+
+    member_device_usage_map = {member.id: 0 for member in user_members}
+
+    ended_logs = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .join(User, Device.user_id == User.id)
+        .options(joinedload(DeviceUsageLog.device).joinedload(Device.user))
+        .filter(DeviceUsageLog.deleted_at.is_(None))
+        .filter(DeviceUsageLog.end_time.isnot(None))
+        .filter(DeviceUsageLog.start_time >= period_start_utc)
+        .filter(DeviceUsageLog.start_time <= period_end_utc)
+        .filter(User.role == "user")
+        .all()
+    )
+
+    if not ended_logs:
+        return None, "対象期間に終了済みの使用記録がありません。", None
+
+    for usage_log in ended_logs:
+        start_time_utc = ensure_utc_aware(usage_log.start_time)
+        end_time_utc = ensure_utc_aware(usage_log.end_time)
+        usage_seconds = Decimal(str((end_time_utc - start_time_utc).total_seconds()))
+        if usage_seconds <= 0:
+            continue
+
+        usage_hours = usage_seconds / Decimal("3600")
+        device_usage_amount = Decimal(str(usage_log.device.power_kw)) * usage_hours * unit_price
+        rounded_device_usage_amount = int(
+            device_usage_amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        )
+        member_device_usage_map[usage_log.device.user_id] += rounded_device_usage_amount
+
+    total_device_usage_amount = sum(member_device_usage_map.values())
+
+    equal_share_base = (
+        billing_amount - Decimal(total_device_usage_amount)
+    ) / Decimal(len(user_members))
+    rounded_equal_share_amount = int(
+        equal_share_base.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    )
+
+    cards = []
+    for member in user_members:
+        device_usage_amount = member_device_usage_map[member.id]
+        share_amount = device_usage_amount + rounded_equal_share_amount
+        cards.append(
+            {
+                "user_id": member.id,
+                "member_name": member.name,
+                "card_color": member.color,
+                "device_usage_amount": device_usage_amount,
+                "equal_share_amount": rounded_equal_share_amount,
+                "share_amount": share_amount,
+            }
+        )
+
+    billing_amount_yen = int(billing_amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    total_share_amount = sum(card["share_amount"] for card in cards)
+    adjustment = billing_amount_yen - total_share_amount
+
+    if adjustment != 0 and cards:
+        max_share_card = max(cards, key=lambda card: (card["share_amount"], -card["user_id"]))
+        max_share_card["share_amount"] += adjustment
+
+    cards.sort(key=lambda card: (-card["share_amount"], card["user_id"]))
+
+    display_cards = [
+        {
+            "member_name": card["member_name"],
+            "card_color": card["card_color"],
+            "share_amount_display": format_yen_for_display(card["share_amount"]),
+            "device_usage_amount_display": format_yen_for_display(card["device_usage_amount"]),
+            "equal_share_amount_display": format_yen_for_display(card["equal_share_amount"]),
+        }
+        for card in cards
+    ]
+
+    return display_cards, None, total_device_usage_amount
+
+
+def build_empty_bill_preview_members(user_members):
+    """未入力時のプレビューカード表示データを作る。"""
+    return [
+        {
+            "member_name": member.name,
+            "card_color": "#f2f2f2",
+            "share_amount_display": "- - - - -円",
+            "device_usage_amount_display": "- - - - -円",
+            "equal_share_amount_display": "- - - - -円",
+        }
+        for member in user_members
+    ]
+
+
+def get_admin_bill_confirm_base_context():
+    """電気料金確定画面の共通初期情報を組み立てる。"""
+    latest_finalized_bill = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .first()
+    )
+
+    if latest_finalized_bill is not None:
+        latest_created_display = format_date_for_jst_display(latest_finalized_bill.created_at)
+        latest_period_display = (
+            f"{format_date_for_jst_display(latest_finalized_bill.period_start)}"
+            f"～{format_date_for_jst_display(latest_finalized_bill.period_end)}利用分"
+        )
+
+        latest_period_end_utc = ensure_utc_aware(latest_finalized_bill.period_end)
+        fixed_period_start_tokyo = (
+            latest_period_end_utc.astimezone(TOKYO_TIMEZONE)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            + timedelta(days=1)
+        )
+        unfinalized_start_display = fixed_period_start_tokyo.strftime("%Y/%m/%d")
+        unfinalized_notice_message = f"{unfinalized_start_display}以降の締め日と電気料金が未確定です。"
+        fixed_period_start_input = fixed_period_start_tokyo.strftime("%Y-%m-%d")
+        fixed_period_start_utc = fixed_period_start_tokyo.astimezone(timezone.utc)
+        is_initial_confirm = False
+    else:
+        latest_created_display = "- - - - / - - / - -"
+        latest_period_display = "- - - - / - - / - - ～ - - - - / - - / - - 利用分"
+        unfinalized_start_display = "- - - - / - - / - -"
+        unfinalized_notice_message = "初回確定の開始日を入力してください"
+        fixed_period_start_input = ""
+        fixed_period_start_utc = None
+        is_initial_confirm = True
+
+    user_members = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+
+    return {
+        "latest_created_display": latest_created_display,
+        "latest_period_display": latest_period_display,
+        "unfinalized_start_display": unfinalized_start_display,
+        "unfinalized_notice_message": unfinalized_notice_message,
+        "fixed_period_start_input": fixed_period_start_input,
+        "fixed_period_start_utc": fixed_period_start_utc,
+        "is_initial_confirm": is_initial_confirm,
+        "user_members": user_members,
+    }
+
+
+def calculate_bill_confirm_preview(
+    *,
+    is_initial_confirm,
+    fixed_period_start_utc,
+    user_members,
+    form_period_start,
+    form_period_end,
+    form_billing_amount,
+    form_base_fee,
+    form_usage_kwh,
+):
+    """入力値を検証し、確定単価とメンバープレビュー表示データを返す。"""
+    result = {
+        "errors": [],
+        "is_ready": False,
+        "unit_price_display": "- - 円",
+        "modal_period_display": "- - - - / - - / - - ～ - - - - / - - / - -",
+        "modal_billing_amount_display": "- - 円",
+        "modal_base_fee_display": "- - 円",
+        "modal_usage_kwh_display": "- - kWh",
+        "modal_unit_price_display": "- - 円/kWh",
+        "preview_members": build_empty_bill_preview_members(user_members),
+    }
+
+    period_start_date = parse_date_input(form_period_start) if is_initial_confirm else None
+    if is_initial_confirm and not form_period_start:
+        result["errors"].append("開始日を入力してください")
+    elif is_initial_confirm and period_start_date is None:
+        result["errors"].append("開始日は YYYY-MM-DD 形式で入力してください")
+
+    period_end_date = parse_date_input(form_period_end)
+    if not form_period_end:
+        result["errors"].append("終了日を入力してください")
+    elif period_end_date is None:
+        result["errors"].append("終了日は YYYY-MM-DD 形式で入力してください")
+
+    billing_amount = parse_decimal_input(form_billing_amount)
+    if not form_billing_amount:
+        result["errors"].append("請求総額を入力してください")
+    elif billing_amount is None:
+        result["errors"].append("請求総額は数値で入力してください")
+    elif billing_amount <= 0:
+        result["errors"].append("請求総額は0より大きい値を入力してください")
+
+    base_fee = parse_decimal_input(form_base_fee)
+    if not form_base_fee:
+        result["errors"].append("基本料金を入力してください")
+    elif base_fee is None:
+        result["errors"].append("基本料金は数値で入力してください")
+    elif base_fee < 0:
+        result["errors"].append("基本料金は0以上で入力してください")
+
+    usage_kwh = parse_decimal_input(form_usage_kwh)
+    if not form_usage_kwh:
+        result["errors"].append("使用量を入力してください")
+    elif usage_kwh is None:
+        result["errors"].append("使用量は数値で入力してください")
+    elif usage_kwh <= 0:
+        result["errors"].append("使用量は0より大きい値を入力してください")
+
+    if billing_amount is not None and base_fee is not None and base_fee > billing_amount:
+        result["errors"].append("基本料金が請求総額を上回る値は入力できません")
+
+    if (
+        is_initial_confirm
+        and period_start_date is not None
+        and period_end_date is not None
+        and period_end_date < period_start_date
+    ):
+        result["errors"].append("終了日は開始日以降の日付を入力してください")
+
+    period_start_utc = None
+    period_end_utc = None
+    if not result["errors"] and period_end_date is not None:
+        if is_initial_confirm:
+            period_start_utc = convert_tokyo_date_to_utc_start(period_start_date)
+        else:
+            period_start_utc = fixed_period_start_utc
+        period_end_utc = convert_tokyo_date_to_utc_end(period_end_date)
+
+        if period_start_utc is not None and period_end_utc < period_start_utc:
+            result["errors"].append("終了日は開始日以降の日付を入力してください")
+
+    if result["errors"]:
+        return result
+
+    unit_price = ((billing_amount - base_fee) / usage_kwh).quantize(
+        Decimal("0.1"),
+        rounding=ROUND_HALF_UP,
+    )
+    result["unit_price_display"] = f"{format(unit_price, '.1f')}円/kWh"
+
+    calculated_cards, preview_error, _ = build_bill_preview_cards(
+        user_members=user_members,
+        period_start_utc=period_start_utc,
+        period_end_utc=period_end_utc,
+        unit_price=unit_price,
+        billing_amount=billing_amount,
+    )
+    if preview_error is not None:
+        result["errors"].append(preview_error)
+        return result
+
+    result["preview_members"] = calculated_cards
+    period_start_display = period_start_utc.astimezone(TOKYO_TIMEZONE).strftime("%Y/%m/%d")
+    period_end_display = period_end_utc.astimezone(TOKYO_TIMEZONE).strftime("%Y/%m/%d")
+    result["modal_period_display"] = f"{period_start_display} ～ {period_end_display}"
+    result["modal_billing_amount_display"] = format_yen_for_display(billing_amount)
+    result["modal_base_fee_display"] = format_yen_for_display(base_fee)
+    result["modal_usage_kwh_display"] = f"{format_decimal_for_display(usage_kwh)}kWh"
+    result["modal_unit_price_display"] = result["unit_price_display"]
+    result["is_ready"] = True
+    return result
 
 
 @app.route("/")
@@ -1269,63 +1598,108 @@ def admin_top():
     )
 
 
-@app.route("/admin/bills/confirm", methods=["GET"])
+@app.route("/admin/bills/confirm", methods=["GET", "POST"])
 @login_required
 @admin_required
 def admin_bill_confirm():
-    """管理者用の電気料金確定画面（Step 1: GET表示）を表示する。"""
-    latest_finalized_bill = (
-        FinalizedBill.query
-        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
-        .first()
+    """管理者用の電気料金確定画面（Step 2: 入力受け取りとプレビュー）を表示する。"""
+    base_context = get_admin_bill_confirm_base_context()
+    is_initial_confirm = base_context["is_initial_confirm"]
+    fixed_period_start_utc = base_context["fixed_period_start_utc"]
+    user_members = base_context["user_members"]
+
+    form_period_start = ""
+    form_period_end = ""
+    form_billing_amount = ""
+    form_base_fee = ""
+    form_usage_kwh = ""
+
+    preview_result = calculate_bill_confirm_preview(
+        is_initial_confirm=is_initial_confirm,
+        fixed_period_start_utc=fixed_period_start_utc,
+        user_members=user_members,
+        form_period_start=form_period_start,
+        form_period_end=form_period_end,
+        form_billing_amount=form_billing_amount,
+        form_base_fee=form_base_fee,
+        form_usage_kwh=form_usage_kwh,
     )
 
-    # 最新の確定済み情報（右上表示）を作成
-    if latest_finalized_bill is not None:
-        latest_created_display = format_date_for_jst_display(latest_finalized_bill.created_at)
-        latest_period_display = (
-            f"{format_date_for_jst_display(latest_finalized_bill.period_start)}"
-            f"～{format_date_for_jst_display(latest_finalized_bill.period_end)}利用分"
-        )
+    if request.method == "POST":
+        # 入力値を取得し、入力保持用にも保持する
+        form_period_start = request.form.get("period_start", "").strip()
+        form_period_end = request.form.get("period_end", "").strip()
+        form_billing_amount = request.form.get("billing_amount", "").strip()
+        form_base_fee = request.form.get("base_fee", "").strip()
+        form_usage_kwh = request.form.get("usage_kwh", "").strip()
 
-        # 通常時の開始日は、最新確定期間の終了日の翌日（日本時間）
-        latest_period_end_utc = ensure_utc_aware(latest_finalized_bill.period_end)
-        fixed_period_start_tokyo = (
-            latest_period_end_utc.astimezone(TOKYO_TIMEZONE)
-            .replace(hour=0, minute=0, second=0, microsecond=0)
-            + timedelta(days=1)
+        preview_result = calculate_bill_confirm_preview(
+            is_initial_confirm=is_initial_confirm,
+            fixed_period_start_utc=fixed_period_start_utc,
+            user_members=user_members,
+            form_period_start=form_period_start,
+            form_period_end=form_period_end,
+            form_billing_amount=form_billing_amount,
+            form_base_fee=form_base_fee,
+            form_usage_kwh=form_usage_kwh,
         )
-        unfinalized_start_display = fixed_period_start_tokyo.strftime("%Y/%m/%d")
-        unfinalized_notice_message = f"{unfinalized_start_display}以降の締め日と電気料金が未確定です。"
-        fixed_period_start_input = fixed_period_start_tokyo.strftime("%Y-%m-%d")
-        is_initial_confirm = False
-    else:
-        # 初回確定時は開始日を手入力させる（最新確定表示はプレースホルダー）
-        latest_created_display = "- - - - / - - / - -"
-        latest_period_display = "- - - - / - - / - - ～ - - - - / - - / - - 利用分"
-        unfinalized_start_display = "- - - - / - - / - -"
-        unfinalized_notice_message = "初回確定の開始日を入力してください"
-        fixed_period_start_input = ""
-        is_initial_confirm = True
-
-    # プレビュー対象は一般ユーザーのみ（未入力時の並び順）
-    preview_members = (
-        User.query
-        .filter(User.role == "user")
-        .order_by(User.created_at.asc(), User.id.asc())
-        .all()
-    )
+        if preview_result["errors"]:
+            for message in preview_result["errors"]:
+                flash(message, "danger")
 
     return render_template(
         "admin_bill_confirm.html",
-        latest_created_display=latest_created_display,
-        latest_period_display=latest_period_display,
-        unfinalized_start_display=unfinalized_start_display,
-        unfinalized_notice_message=unfinalized_notice_message,
+        latest_created_display=base_context["latest_created_display"],
+        latest_period_display=base_context["latest_period_display"],
+        unfinalized_start_display=base_context["unfinalized_start_display"],
+        unfinalized_notice_message=base_context["unfinalized_notice_message"],
         is_initial_confirm=is_initial_confirm,
-        fixed_period_start_input=fixed_period_start_input,
-        preview_members=preview_members,
-        unit_price_display="- - 円",
+        fixed_period_start_input=base_context["fixed_period_start_input"],
+        preview_members=preview_result["preview_members"],
+        unit_price_display=preview_result["unit_price_display"],
+        form_period_start=form_period_start,
+        form_period_end=form_period_end,
+        form_billing_amount=form_billing_amount,
+        form_base_fee=form_base_fee,
+        form_usage_kwh=form_usage_kwh,
+        modal_period_display=preview_result["modal_period_display"],
+        modal_billing_amount_display=preview_result["modal_billing_amount_display"],
+        modal_base_fee_display=preview_result["modal_base_fee_display"],
+        modal_usage_kwh_display=preview_result["modal_usage_kwh_display"],
+        modal_unit_price_display=preview_result["modal_unit_price_display"],
+        confirm_preview_api_url=url_for("admin_bill_confirm_preview"),
+        preview_ready=preview_result["is_ready"],
+    )
+
+
+@app.route("/admin/bills/confirm/preview", methods=["POST"])
+@login_required
+@admin_required
+def admin_bill_confirm_preview():
+    """入力値からプレビュー表示データのみを返す（保存はしない）。"""
+    base_context = get_admin_bill_confirm_base_context()
+    preview_result = calculate_bill_confirm_preview(
+        is_initial_confirm=base_context["is_initial_confirm"],
+        fixed_period_start_utc=base_context["fixed_period_start_utc"],
+        user_members=base_context["user_members"],
+        form_period_start=request.form.get("period_start", "").strip(),
+        form_period_end=request.form.get("period_end", "").strip(),
+        form_billing_amount=request.form.get("billing_amount", "").strip(),
+        form_base_fee=request.form.get("base_fee", "").strip(),
+        form_usage_kwh=request.form.get("usage_kwh", "").strip(),
+    )
+    return jsonify(
+        {
+            "ok": preview_result["is_ready"],
+            "errors": preview_result["errors"],
+            "unit_price_display": preview_result["unit_price_display"],
+            "preview_members": preview_result["preview_members"],
+            "modal_period_display": preview_result["modal_period_display"],
+            "modal_billing_amount_display": preview_result["modal_billing_amount_display"],
+            "modal_base_fee_display": preview_result["modal_base_fee_display"],
+            "modal_usage_kwh_display": preview_result["modal_usage_kwh_display"],
+            "modal_unit_price_display": preview_result["modal_unit_price_display"],
+        }
     )
 
 
