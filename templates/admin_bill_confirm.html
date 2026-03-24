@@ -251,6 +251,7 @@
             <form action="{{ url_for('admin_bill_confirm') }}" method="post" id="billConfirmForm" data-preview-url="{{ confirm_preview_api_url }}">
             <div class="form-card">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" id="isConfirmedByModal" name="is_confirmed_by_modal" value="false">
                 <p class="form-instruction">電力会社の請求書を参考に<br>下記を入力してください</p>
                 
                 <div class="form-group">
@@ -396,6 +397,8 @@
         const billingAmount = document.getElementById('billing_amount');
         const baseFee = document.getElementById('base_fee');
         const usageKwh = document.getElementById('usage_kwh');
+        const execConfirmPrice = document.getElementById('execConfirmPrice');
+        const isConfirmedByModal = document.getElementById('isConfirmedByModal');
 
         const defaultPreviewHTML = previewCarousel.innerHTML;
         const defaultUnitPriceDisplay = unitPriceDisplay.textContent;
@@ -543,6 +546,7 @@
             if (previewDebounceTimer) {
                 clearTimeout(previewDebounceTimer);
             }
+            isConfirmedByModal.value = 'false';
             previewDebounceTimer = setTimeout(requestAutoPreview, 300);
         }
 
@@ -551,7 +555,12 @@
                 showDangerFlashMessage(latestPreviewErrorMessage || '入力内容を確認し、必須項目を正しく入力してください。');
                 return;
             }
+            isConfirmedByModal.value = 'false';
             openModal('confirmPriceModal');
+        });
+
+        execConfirmPrice.addEventListener('click', () => {
+            isConfirmedByModal.value = 'true';
         });
 
         modalOverlay.addEventListener('click', (event) => {
