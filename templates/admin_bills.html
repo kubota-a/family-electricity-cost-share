@@ -174,28 +174,29 @@
 
         <!-- 確定日・請求総額 -->
         <div class="header-section">
-            <div class="date-summary">確定日 2025/12/21<br>2025/10/22〜2025/11/19利用分</div>
+            <div class="date-summary">{{ latest_date_summary|safe }}</div>
             <div class="price-summary">
-                <span class="total">請求総額　¥ 6,860</span>
-                <span class="unit-price">/ 単価　28.5円/kWh</span>
+                <span class="total">{{ latest_total_amount_display }}</span>
+                <span class="unit-price">{{ latest_unit_price_display }}</span>
             </div>
         </div>
 
         <div class="section-title">メンバーごとのシェア金額</div>
         <div class="carousel-container">
             <div class="carousel-wrapper" id="memberCarousel">
+                {% if member_cards %}
+                {% for member in member_cards %}
+                <div class="member-card" style="background-color: {{ member.member_color }};">
+                    <div class="member-name">{{ member.member_name }}</div>
+                    <div class="member-amount">{{ member.share_amount_display }}</div>
+                </div>
+                {% endfor %}
+                {% else %}
                 <div class="member-card card-hanako">
-                    <div class="member-name">花子</div>
-                    <div class="member-amount">〇〇〇〇円</div>
+                    <div class="member-name">-</div>
+                    <div class="member-amount">- - -円</div>
                 </div>
-                <div class="member-card card-taro">
-                    <div class="member-name">太郎</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
-                <div class="member-card card-ichiro">
-                    <div class="member-name">一郎</div>
-                    <div class="member-amount">〇〇〇〇円</div>
-                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -211,42 +212,23 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% if history_rows %}
+                    {% for row in history_rows %}
                     <tr onclick="selectRow(this)">
-                        <td>2025/10/22〜2025/11/19</td>
-                        <td>2025/12/21</td>
-                        <td>28.5円/kWh</td>
-                        <td class="text-right">¥ 6,860</td>
+                        <td>{{ row.period_display }}</td>
+                        <td>{{ row.created_date_display }}</td>
+                        <td>{{ row.unit_price_display }}</td>
+                        <td class="text-right">{{ row.billing_amount_display }}</td>
                     </tr>
-                    <tr onclick="selectRow(this)">
-                        <td>2025/09/20〜2025/10/21</td>
-                        <td>2025/11/23</td>
-                        <td>29.2円/kWh</td>
-                        <td class="text-right">¥ 7,200</td>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td>- - - - / - - / - -～- - - - / - - / - -</td>
+                        <td>- - - - / - - / - -</td>
+                        <td>- - 円/kWh</td>
+                        <td class="text-right">¥ - - -</td>
                     </tr>
-                    <tr onclick="selectRow(this)">
-                        <td>2025/08/21〜2025/09/19</td>
-                        <td>2025/10/30</td>
-                        <td>28.8円/kWh</td>
-                        <td class="text-right">¥ 14,600</td>
-                    </tr>
-                    <tr onclick="selectRow(this)">
-                        <td>2025/07/22〜2025/08/20</td>
-                        <td>2025/09/21</td>
-                        <td>28.2円/kWh</td>
-                        <td class="text-right">¥ 15,300</td>
-                    </tr>
-                    <tr onclick="selectRow(this)">
-                        <td>2025/06/20〜2025/07/21</td>
-                        <td>2025/08/23</td>
-                        <td>28.0円/kWh</td>
-                        <td class="text-right">¥ 9,400</td>
-                    </tr>
-                    <tr onclick="selectRow(this)">
-                        <td>2025/05/21〜2025/06/19</td>
-                        <td>2025/07/20</td>
-                        <td>27.5円/kWh</td>
-                        <td class="text-right">¥ 8,800</td>
-                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>

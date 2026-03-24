@@ -104,6 +104,94 @@
         .nav-btn { background: #fff; border: 1px solid var(--border-color); width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: 0.2s; z-index: 5; flex-shrink: 0; }
         .nav-btn:hover { background: var(--primary-color); color: white; }
 
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .modal-overlay.is-open { opacity: 1; visibility: visible; }
+        .modal-content {
+            background: #fff;
+            padding: 32px 24px;
+            border-radius: 20px;
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.is-open .modal-content { transform: translateY(0); }
+        .close-button {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #aaa;
+            line-height: 1;
+        }
+        .confirm-icon { font-size: 40px; margin-bottom: 12px; display: block; }
+        .modal-title { color: #444; font-size: 1.15rem; margin: 0 0 10px 0; }
+        .modal-description { font-size: 0.9rem; color: #666; margin-bottom: 20px; }
+        .summary-card {
+            background: #fffafa;
+            border: 1px solid #f5e6e6;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed #eee;
+        }
+        .summary-row:last-child { border-bottom: none; padding-top: 15px; margin-top: 5px; }
+        .summary-label { font-size: 0.85rem; color: #888; }
+        .summary-value { font-size: 0.95rem; font-weight: bold; color: #333; }
+        .period-text {
+            display: block;
+            background: #fdf2f2;
+            color: #d68080;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .unit-price-label { color: #d68080; font-weight: bold; }
+        .unit-price-value { font-size: 1.2rem; color: #d68080; }
+        .modal-actions { display: flex; gap: 12px; }
+        .modal-actions button {
+            flex: 1;
+            padding: 14px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s;
+        }
+        .btn-cancel { background: #f0f0f0; color: #666; }
+        .btn-confirm { background: #d68080; color: white; }
+        .modal-actions button:hover { opacity: 0.85; }
+
         /* --- レスポンシブ --- */
         @media (max-width: 900px) {
             .content-grid { grid-template-columns: 1fr; }
@@ -115,6 +203,11 @@
             .carousel-vertical { height: auto; flex-direction: row; width: 100%; overflow-x: auto; }
             .carousel-track { flex-direction: row; overflow-x: auto; height: auto; width: 100%; }
             .nav-btn { display: none; }
+        }
+        @media (max-width: 480px) {
+            .modal-content { padding: 30px 15px; }
+            .modal-actions { flex-direction: column-reverse; }
+            .btn-cancel { background: transparent; }
         }
     </style>
 </head>
@@ -144,26 +237,33 @@
         <div class="header-flex">
             <h2>電気料金の確定</h2>
             <div class="header-info">
-                最終確定 2025/12/21<br>
-                2025/10/22〜2025/11/19利用分
+                最終確定 {{ latest_created_display }}<br>
+                {{ latest_period_display }}
             </div>
         </div>
 
         <div class="alert-box">
             <i class="fas fa-sun"></i>
-            <span>2025/11/20以降の締め日と電気料金が未確定です。</span>
+            <span>{{ unfinalized_notice_message }}</span>
         </div>
 
         <div class="content-grid">
+            <form action="{{ url_for('admin_bill_confirm') }}" method="post" id="billConfirmForm" data-preview-url="{{ confirm_preview_api_url }}">
             <div class="form-card">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" id="isConfirmedByModal" name="is_confirmed_by_modal" value="false">
                 <p class="form-instruction">電力会社の請求書を参考に<br>下記を入力してください</p>
                 
                 <div class="form-group">
                     <span class="label-text">検針日（利用期間）</span>
                     <div class="input-row">
-                        <input type="date">
+                        {% if is_initial_confirm %}
+                        <input type="date" id="period_start" name="period_start" value="{{ form_period_start }}">
+                        {% else %}
+                        <input type="date" id="period_start_fixed" value="{{ fixed_period_start_input }}" disabled>
+                        {% endif %}
                         <span>〜</span>
-                        <input type="date">
+                        <input type="date" id="period_end" name="period_end" value="{{ form_period_end }}">
                     </div>
                 </div>
 
@@ -171,13 +271,13 @@
                     <div class="form-group">
                         <span class="label-text">請求総額</span>
                         <div class="unit-input-wrapper" data-unit="円">
-                            <input type="text" placeholder="" oninput="formatCurrency(this)">
+                            <input type="text" id="billing_amount" name="billing_amount" value="{{ form_billing_amount }}" placeholder="" oninput="formatCurrency(this)">
                         </div>
                     </div>
                     <div class="form-group">
                         <span class="label-text">基本料金</span>
                         <div class="unit-input-wrapper" data-unit="円">
-                            <input type="text" placeholder="" oninput="formatCurrency(this)">
+                            <input type="text" id="base_fee" name="base_fee" value="{{ form_base_fee }}" placeholder="" oninput="formatCurrency(this)">
                         </div>
                     </div>
                 </div>
@@ -185,55 +285,78 @@
                 <div class="form-group">
                     <span class="label-text">使用量（kWh）</span>
                     <div class="unit-input-wrapper" data-unit="kWh">
-                        <input type="text" placeholder="">
+                        <input type="text" id="usage_kwh" name="usage_kwh" value="{{ form_usage_kwh }}" placeholder="">
                     </div>
                 </div>
 
                 <div class="calculation-result">
                     <span class="result-label">確定単価</span>
                     <span class="result-formula">（請求総額-基本料金）/使用量</span>
-                    <div class="result-value">0.0 <span style="font-size: 1rem; color: #666;">円/kWh</span></div>
+                    <div class="result-value" id="unitPriceDisplay">{{ unit_price_display }}</div>
                 </div>
 
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                 {% set category, message = messages[-1] %}
-                <div class="flash-message {{ 'danger' if category == 'danger' else 'success' }}">{{ message }}</div>
+                <div id="confirmFlashMessage" class="flash-message {{ 'danger' if category == 'danger' else 'success' }}">{{ message }}</div>
+                {% else %}
+                <div id="confirmFlashMessage" class="flash-message danger" style="display: none;"></div>
                 {% endif %}
                 {% endwith %}
                 
-                <button class="btn-submit" type="button">この期間の料金を確定する</button>
+                <button class="btn-submit" id="openConfirmModalButton" type="button">この期間の料金を確定する</button>
+
+                <div class="modal-overlay" id="confirmPriceModal">
+                    <div class="modal-content">
+                        <button class="close-button" type="button" onclick="closeAllModals()">&times;</button>
+                        <div class="modal-body">
+                            <span class="confirm-icon">📝</span>
+                            <h2 class="modal-title">電気料金の確定</h2>
+                            <p class="modal-description">以下の内容で料金を確定し、<br>各メンバーにシェア金額を割り振ります。</p>
+                            <div class="summary-card">
+                                <span class="period-text" id="modalPeriod">{{ modal_period_display }}</span>
+                                <div class="summary-row">
+                                    <span class="summary-label">請求総額</span>
+                                    <span class="summary-value" id="modalBillingAmount">{{ modal_billing_amount_display }}</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span class="summary-label">基本料金</span>
+                                    <span class="summary-value" id="modalBaseFee">{{ modal_base_fee_display }}</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span class="summary-label">使用量</span>
+                                    <span class="summary-value" id="modalUsageKwh">{{ modal_usage_kwh_display }}</span>
+                                </div>
+                                <div class="summary-row">
+                                    <span class="summary-label unit-price-label">確定単価</span>
+                                    <span class="summary-value unit-price-value" id="modalUnitPrice">{{ modal_unit_price_display }}</span>
+                                </div>
+                            </div>
+                            <div class="modal-actions">
+                                <button class="btn-cancel" type="button" onclick="closeAllModals()">キャンセル</button>
+                                <button class="btn-confirm" id="execConfirmPrice" type="submit">この内容で確定する</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+            </form>
 
             <div class="preview-section">
                 <p class="preview-title">プレビュー</p>
                 <div class="carousel-vertical">
                     <button class="nav-btn" onclick="scrollCarousel(-1)"><i class="fas fa-chevron-up"></i></button>
                     <div class="carousel-track" id="previewCarousel">
-                        <div class="preview-card card-hanako">
-                            <h3>花子</h3>
+                        {% for member in preview_members %}
+                        <div class="preview-card" style="background-color: {{ member.card_color }};">
+                            <h3>{{ member.member_name }}</h3>
                             <div class="price-details-box">
-                                <div class="price-line total"><span>シェア金額：</span><span>〇〇〇円</span></div>
-                                <div class="price-line"><span>機器使用分：</span><span>〇〇〇円</span></div>
-                                <div class="price-line"><span>割り勘分：</span><span>〇〇〇円</span></div>
+                                <div class="price-line total"><span>シェア金額：</span><span>{{ member.share_amount_display }}</span></div>
+                                <div class="price-line"><span>機器使用分：</span><span>{{ member.device_usage_amount_display }}</span></div>
+                                <div class="price-line"><span>割り勘分：</span><span>{{ member.equal_share_amount_display }}</span></div>
                             </div>
                         </div>
-                        <div class="preview-card card-taro">
-                            <h3>太郎</h3>
-                            <div class="price-details-box">
-                                <div class="price-line total"><span>シェア金額：</span><span>〇〇〇円</span></div>
-                                <div class="price-line"><span>機器使用分：</span><span>〇〇〇円</span></div>
-                                <div class="price-line"><span>割り勘分：</span><span>〇〇〇円</span></div>
-                            </div>
-                        </div>
-                        <div class="preview-card card-ichiro">
-                            <h3>一郎</h3>
-                            <div class="price-details-box">
-                                <div class="price-line total"><span>シェア金額：</span><span>〇〇〇円</span></div>
-                                <div class="price-line"><span>機器使用分：</span><span>〇〇〇円</span></div>
-                                <div class="price-line"><span>割り勘分：</span><span>〇〇〇円</span></div>
-                            </div>
-                        </div>
+                        {% endfor %}
                     </div>
                     <button class="nav-btn" onclick="scrollCarousel(1)"><i class="fas fa-chevron-down"></i></button>
                 </div>
@@ -243,7 +366,7 @@
 
     <script>
         function formatCurrency(input) {
-            let value = input.value.replace(/,/g, '');
+            const value = input.value.replace(/,/g, '');
             if (!isNaN(value) && value !== "") {
                 input.value = Number(value).toLocaleString();
             }
@@ -257,6 +380,203 @@
                 behavior: 'smooth'
             });
         }
+
+        const modalOverlay = document.getElementById('confirmPriceModal');
+        const openConfirmModalButton = document.getElementById('openConfirmModalButton');
+        const billConfirmForm = document.getElementById('billConfirmForm');
+        const unitPriceDisplay = document.getElementById('unitPriceDisplay');
+        const previewCarousel = document.getElementById('previewCarousel');
+        const modalPeriod = document.getElementById('modalPeriod');
+        const modalBillingAmount = document.getElementById('modalBillingAmount');
+        const modalBaseFee = document.getElementById('modalBaseFee');
+        const modalUsageKwh = document.getElementById('modalUsageKwh');
+        const modalUnitPrice = document.getElementById('modalUnitPrice');
+        const periodStart = document.getElementById('period_start');
+        const periodStartFixed = document.getElementById('period_start_fixed');
+        const periodEnd = document.getElementById('period_end');
+        const billingAmount = document.getElementById('billing_amount');
+        const baseFee = document.getElementById('base_fee');
+        const usageKwh = document.getElementById('usage_kwh');
+        const execConfirmPrice = document.getElementById('execConfirmPrice');
+        const isConfirmedByModal = document.getElementById('isConfirmedByModal');
+
+        const defaultPreviewHTML = previewCarousel.innerHTML;
+        const defaultUnitPriceDisplay = unitPriceDisplay.textContent;
+        const defaultModalPeriod = modalPeriod.textContent;
+        const defaultModalBillingAmount = modalBillingAmount.textContent;
+        const defaultModalBaseFee = modalBaseFee.textContent;
+        const defaultModalUsageKwh = modalUsageKwh.textContent;
+        const defaultModalUnitPrice = modalUnitPrice.textContent;
+        const previewApiUrl = billConfirmForm.dataset.previewUrl;
+
+        let previewReady = {{ 'true' if preview_ready else 'false' }};
+        let previewRequestSerial = 0;
+        let previewDebounceTimer = null;
+        let latestPreviewErrorMessage = null;
+        const confirmFlashMessage = document.getElementById('confirmFlashMessage');
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal-overlay').forEach((modal) => modal.classList.remove('is-open'));
+            document.body.style.overflow = '';
+        }
+
+        function sanitizeNumber(value) {
+            return (value || '').replace(/,/g, '').trim();
+        }
+
+        function hasRequiredInput() {
+            if (!periodEnd.value.trim()) {
+                return false;
+            }
+            if (periodStart && !periodStart.value.trim()) {
+                return false;
+            }
+            if (!periodStart && (!periodStartFixed || !periodStartFixed.value.trim())) {
+                return false;
+            }
+            if (!sanitizeNumber(billingAmount.value) || !sanitizeNumber(baseFee.value) || !sanitizeNumber(usageKwh.value)) {
+                return false;
+            }
+            return true;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function resetPreviewDisplay() {
+            unitPriceDisplay.textContent = defaultUnitPriceDisplay;
+            modalPeriod.textContent = defaultModalPeriod;
+            modalBillingAmount.textContent = defaultModalBillingAmount;
+            modalBaseFee.textContent = defaultModalBaseFee;
+            modalUsageKwh.textContent = defaultModalUsageKwh;
+            modalUnitPrice.textContent = defaultModalUnitPrice;
+            previewCarousel.innerHTML = defaultPreviewHTML;
+            previewReady = false;
+        }
+
+        function showDangerFlashMessage(message) {
+            confirmFlashMessage.className = 'flash-message danger';
+            confirmFlashMessage.textContent = message;
+            confirmFlashMessage.style.display = 'block';
+            confirmFlashMessage.dataset.clientMessage = 'true';
+        }
+
+        function hideFlashMessageIfClientShown() {
+            if (confirmFlashMessage.dataset.clientMessage !== 'true') {
+                return;
+            }
+            confirmFlashMessage.style.display = 'none';
+            confirmFlashMessage.textContent = '';
+            delete confirmFlashMessage.dataset.clientMessage;
+        }
+
+        function renderPreviewCards(previewMembers) {
+            const cardHtml = previewMembers.map((member) => {
+                return `
+                    <div class="preview-card" style="background-color: ${escapeHtml(member.card_color)};">
+                        <h3>${escapeHtml(member.member_name)}</h3>
+                        <div class="price-details-box">
+                            <div class="price-line total"><span>シェア金額：</span><span>${escapeHtml(member.share_amount_display)}</span></div>
+                            <div class="price-line"><span>機器使用分：</span><span>${escapeHtml(member.device_usage_amount_display)}</span></div>
+                            <div class="price-line"><span>割り勘分：</span><span>${escapeHtml(member.equal_share_amount_display)}</span></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            previewCarousel.innerHTML = cardHtml;
+        }
+
+        async function requestAutoPreview() {
+            if (!hasRequiredInput()) {
+                resetPreviewDisplay();
+                latestPreviewErrorMessage = null;
+                return;
+            }
+
+            const currentSerial = ++previewRequestSerial;
+            const formData = new FormData(billConfirmForm);
+
+            try {
+                const response = await fetch(previewApiUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (currentSerial !== previewRequestSerial) {
+                    return;
+                }
+                if (!response.ok || !data.ok) {
+                    latestPreviewErrorMessage = (data.errors && data.errors.length > 0)
+                        ? data.errors[0]
+                        : '入力内容を確認してください。';
+                    resetPreviewDisplay();
+                    return;
+                }
+
+                unitPriceDisplay.textContent = data.unit_price_display;
+                modalPeriod.textContent = data.modal_period_display;
+                modalBillingAmount.textContent = data.modal_billing_amount_display;
+                modalBaseFee.textContent = data.modal_base_fee_display;
+                modalUsageKwh.textContent = data.modal_usage_kwh_display;
+                modalUnitPrice.textContent = data.modal_unit_price_display;
+                renderPreviewCards(data.preview_members);
+                previewReady = true;
+                latestPreviewErrorMessage = null;
+                hideFlashMessageIfClientShown();
+            } catch (error) {
+                if (currentSerial === previewRequestSerial) {
+                    latestPreviewErrorMessage = 'プレビューの更新に失敗しました。入力内容を確認してください。';
+                    resetPreviewDisplay();
+                }
+            }
+        }
+
+        function queueAutoPreview() {
+            if (previewDebounceTimer) {
+                clearTimeout(previewDebounceTimer);
+            }
+            isConfirmedByModal.value = 'false';
+            previewDebounceTimer = setTimeout(requestAutoPreview, 300);
+        }
+
+        openConfirmModalButton.addEventListener('click', () => {
+            if (!previewReady) {
+                showDangerFlashMessage(latestPreviewErrorMessage || '入力内容を確認し、必須項目を正しく入力してください。');
+                return;
+            }
+            isConfirmedByModal.value = 'false';
+            openModal('confirmPriceModal');
+        });
+
+        execConfirmPrice.addEventListener('click', () => {
+            isConfirmedByModal.value = 'true';
+        });
+
+        modalOverlay.addEventListener('click', (event) => {
+            if (event.target === modalOverlay) {
+                closeAllModals();
+            }
+        });
+
+        const previewInputs = [periodEnd, billingAmount, baseFee, usageKwh];
+        if (periodStart) {
+            previewInputs.push(periodStart);
+        }
+        previewInputs.forEach((inputElement) => {
+            inputElement.addEventListener('input', queueAutoPreview);
+            inputElement.addEventListener('change', queueAutoPreview);
+        });
     </script>
 </body>
 </html>
