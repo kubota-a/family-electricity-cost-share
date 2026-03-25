@@ -1317,33 +1317,23 @@ def user_share_amounts():
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # Step 2: period_end 降順で確定済み電気料金を取得（先頭を最新として扱う）
-    finalized_bills = (
-        FinalizedBill.query
+    # ログイン中ユーザーの内訳がある請求のみを period_end 降順で取得する
+    member_rows = (
+        FinalizedBillMember.query
+        .join(FinalizedBill, FinalizedBillMember.finalized_bill_id == FinalizedBill.id)
+        .options(joinedload(FinalizedBillMember.finalized_bill))
+        .filter(FinalizedBillMember.user_id == current_user.id)
         .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
         .all()
     )
 
-    # ログイン中ユーザーに紐づくシェア金額を請求IDごとに引ける形へ整える
-    member_rows = (
-        FinalizedBillMember.query
-        .filter(FinalizedBillMember.user_id == current_user.id)
-        .all()
-    )
-    share_amount_by_bill_id = {
-        member_row.finalized_bill_id: member_row.share_amount
-        for member_row in member_rows
-    }
-
-    # 画面表示向けのカード情報を作る（ユーザー内訳欠損時は安全側で「- 円」表示）
+    # 画面表示向けのカード情報を作る（対象はユーザー内訳がある請求のみ）
     bill_cards = []
-    for finalized_bill in finalized_bills:
-        share_amount = share_amount_by_bill_id.get(finalized_bill.id)
-        share_amount_display = (
-            format_yen_for_display(share_amount)
-            if share_amount is not None
-            else "- 円"
-        )
+    for member_row in member_rows:
+        if member_row.finalized_bill is None:
+            continue
+
+        finalized_bill = member_row.finalized_bill
         bill_cards.append(
             {
                 "bill_id": finalized_bill.id,
@@ -1351,7 +1341,7 @@ def user_share_amounts():
                     f"{format_date_for_jst_display(finalized_bill.period_start)}〜"
                     f"{format_date_for_jst_display(finalized_bill.period_end)} 利用分"
                 ),
-                "share_amount_display": share_amount_display,
+                "share_amount_display": format_yen_for_display(member_row.share_amount),
             }
         )
 
@@ -1371,21 +1361,39 @@ def user_share_amounts():
 @app.route("/user/share-amounts/<int:finalized_bill_id>", methods=["GET"])
 @login_required
 def user_share_amount_detail(finalized_bill_id):
-    """一般ユーザー用のシェア金額詳細画面（Step 1 の最小実装）を表示する。"""
+    """一般ユーザー用のシェア金額詳細画面（Step 3 の最小実装）を表示する。"""
     # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # Step 1: 最小表示用のダミー値（Step 3で対象IDのDB取得へ差し替え）
+    # 所有権チェック: ログイン中ユーザーの内訳がある請求のみ表示を許可する
+    target_member = (
+        FinalizedBillMember.query
+        .options(joinedload(FinalizedBillMember.finalized_bill))
+        .filter(
+            FinalizedBillMember.finalized_bill_id == finalized_bill_id,
+            FinalizedBillMember.user_id == current_user.id,
+        )
+        .first()
+    )
+    if target_member is None or target_member.finalized_bill is None:
+        return redirect(url_for("user_share_amounts"))
+
+    target_bill = target_member.finalized_bill
+
+    # Step 3: 一覧から受け取った対象IDの最小表示データを作る
     detail_view_data = {
         "bill_id": finalized_bill_id,
-        "period_display": "2025/10/22～2025/11/19",
-        "confirmed_date_display": "2025/12/21",
-        "total_electricity_display": "〇〇〇〇〇円",
-        "share_amount_display": "〇〇〇〇円",
-        "device_usage_amount_display": "〇〇〇〇円",
-        "equal_share_amount_display": "〇〇〇〇円",
-        "unit_price_display": "28.5",
+        "period_display": (
+            f"{format_date_for_jst_display(target_bill.period_start)}〜"
+            f"{format_date_for_jst_display(target_bill.period_end)}"
+        ),
+        "confirmed_date_display": format_date_for_jst_display(target_bill.created_at),
+        "total_electricity_display": format_yen_for_display(target_bill.billing_amount),
+        "share_amount_display": format_yen_for_display(target_member.share_amount),
+        "device_usage_amount_display": format_yen_for_display(target_member.device_usage_amount),
+        "equal_share_amount_display": format_yen_for_display(target_member.equal_share_amount),
+        "unit_price_display": format_decimal_for_display(target_bill.unit_price),
     }
 
     return render_template(
