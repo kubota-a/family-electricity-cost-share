@@ -236,8 +236,8 @@
             <span class="total-electricity">お家全体の電気代　{{ detail.total_electricity_display }}</span>
         </div>
 
-        <div class="total-amount-card">
-            <span class="total-label">あなたのシェア金額</span>
+        <div class="total-amount-card" style="background-color: {{ current_user.color }};">
+            <span class="total-label">{{ current_user.name }}さんのシェア金額</span>
             <span class="total-value">{{ detail.share_amount_display }}</span>
         </div>
 

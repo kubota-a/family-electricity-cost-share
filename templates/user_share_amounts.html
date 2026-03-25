@@ -133,11 +133,11 @@
 
         .latest-card {
             background: var(--card-bg);
-            border-radius: 15px;
-            border: 1px solid #eee;
-            padding: 28px 20px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            padding: 30px 20px;
             margin: 0 20px 12px;
-            box-shadow: var(--shadow-light);
+            box-shadow: var(--shadow);
             opacity: 0.9;
             text-align: center;
         }
@@ -260,7 +260,11 @@
         <div class="latest-label">
             <i class="fas fa-star"></i> 最新の記録 <i class="fas fa-star"></i>
         </div>
-        <a class="latest-card latest-card-link" href="{{ url_for('user_share_amount_detail', finalized_bill_id=latest_record.bill_id) }}">
+        <a
+            class="latest-card latest-card-link"
+            href="{{ url_for('user_share_amount_detail', finalized_bill_id=latest_record.bill_id) }}"
+            style="background-color: {{ current_user.color }};"
+        >
             <span class="card-date">{{ latest_record.period_display }}</span>
             <span class="card-amount">シェア金額： {{ latest_record.share_amount_display }}</span>
         </a>
