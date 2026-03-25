@@ -1317,30 +1317,48 @@ def user_share_amounts():
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # Step 1: 画面確認用のダミー表示データ（Step 2でDB取得へ差し替え）
-    latest_record = {
-        "bill_id": 999,
-        "period_display": "2025/10/22～2025/11/19 利用分",
-        "share_amount_display": "○○○○円",
+    # Step 2: period_end 降順で確定済み電気料金を取得（先頭を最新として扱う）
+    finalized_bills = (
+        FinalizedBill.query
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .all()
+    )
+
+    # ログイン中ユーザーに紐づくシェア金額を請求IDごとに引ける形へ整える
+    member_rows = (
+        FinalizedBillMember.query
+        .filter(FinalizedBillMember.user_id == current_user.id)
+        .all()
+    )
+    share_amount_by_bill_id = {
+        member_row.finalized_bill_id: member_row.share_amount
+        for member_row in member_rows
     }
-    history_records = [
-        {
-            "bill_id": 998,
-            "period_display": "2025/09/20～2025/10/21利用分",
-            "share_amount_display": "○○○○円",
-        },
-        {
-            "bill_id": 997,
-            "period_display": "2025/08/21～2025/09/19利用分",
-            "share_amount_display": "○○○○円",
-        },
-        {
-            "bill_id": 996,
-            "period_display": "2025/07/21～2025/08/20利用分",
-            "share_amount_display": "○○○○円",
-        },
-    ]
-    has_records = True
+
+    # 画面表示向けのカード情報を作る（ユーザー内訳欠損時は安全側で「- 円」表示）
+    bill_cards = []
+    for finalized_bill in finalized_bills:
+        share_amount = share_amount_by_bill_id.get(finalized_bill.id)
+        share_amount_display = (
+            format_yen_for_display(share_amount)
+            if share_amount is not None
+            else "- 円"
+        )
+        bill_cards.append(
+            {
+                "bill_id": finalized_bill.id,
+                "period_display": (
+                    f"{format_date_for_jst_display(finalized_bill.period_start)}〜"
+                    f"{format_date_for_jst_display(finalized_bill.period_end)} 利用分"
+                ),
+                "share_amount_display": share_amount_display,
+            }
+        )
+
+    # 安全側の空判定: 表示対象カードが1件もない場合は空状態として扱う
+    has_records = len(bill_cards) > 0
+    latest_record = bill_cards[0] if has_records else None
+    history_records = bill_cards[1:] if has_records else []
 
     return render_template(
         "user_share_amounts.html",
