@@ -1317,7 +1317,127 @@ def user_share_amounts():
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    return render_template("user_share_amounts.html")
+    # ログイン中ユーザーの内訳がある請求のみを period_end 降順で取得する
+    member_rows = (
+        FinalizedBillMember.query
+        .join(FinalizedBill, FinalizedBillMember.finalized_bill_id == FinalizedBill.id)
+        .options(joinedload(FinalizedBillMember.finalized_bill))
+        .filter(FinalizedBillMember.user_id == current_user.id)
+        .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
+        .all()
+    )
+
+    # 画面表示向けのカード情報を作る（対象はユーザー内訳がある請求のみ）
+    bill_cards = []
+    for member_row in member_rows:
+        if member_row.finalized_bill is None:
+            continue
+
+        finalized_bill = member_row.finalized_bill
+        bill_cards.append(
+            {
+                "bill_id": finalized_bill.id,
+                "period_display": (
+                    f"{format_date_for_jst_display(finalized_bill.period_start)}〜"
+                    f"{format_date_for_jst_display(finalized_bill.period_end)} 利用分"
+                ),
+                "share_amount_display": format_yen_for_display(member_row.share_amount),
+            }
+        )
+
+    # 安全側の空判定: 表示対象カードが1件もない場合は空状態として扱う
+    has_records = len(bill_cards) > 0
+    latest_record = bill_cards[0] if has_records else None
+    history_records = bill_cards[1:] if has_records else []
+
+    return render_template(
+        "user_share_amounts.html",
+        has_records=has_records,
+        latest_record=latest_record,
+        history_records=history_records,
+    )
+
+
+@app.route("/user/share-amounts/<finalized_bill_id>", methods=["GET"])
+@login_required
+def user_share_amount_detail(finalized_bill_id):
+    """一般ユーザー用のシェア金額詳細画面（MVP仕上げ）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    # 不正ID（数値以外）が来た場合も画面エラーにせず一覧へ戻す
+    try:
+        finalized_bill_id_int = int(finalized_bill_id)
+    except (TypeError, ValueError):
+        return redirect(url_for("user_share_amounts"))
+
+    # 所有権チェック: ログイン中ユーザーの内訳がある請求のみ表示を許可する
+    target_member = (
+        FinalizedBillMember.query
+        .options(joinedload(FinalizedBillMember.finalized_bill))
+        .filter(
+            FinalizedBillMember.finalized_bill_id == finalized_bill_id_int,
+            FinalizedBillMember.user_id == current_user.id,
+        )
+        .first()
+    )
+    if target_member is None or target_member.finalized_bill is None:
+        return redirect(url_for("user_share_amounts"))
+
+    target_bill = target_member.finalized_bill
+
+    # Step 3: 一覧から受け取った対象IDの最小表示データを作る
+    period_start_display = (
+        format_date_for_jst_display(target_bill.period_start)
+        if target_bill.period_start is not None
+        else "- - - - / - - / - -"
+    )
+    period_end_display = (
+        format_date_for_jst_display(target_bill.period_end)
+        if target_bill.period_end is not None
+        else "- - - - / - - / - -"
+    )
+
+    detail_view_data = {
+        "bill_id": finalized_bill_id_int,
+        "period_display": f"{period_start_display}〜{period_end_display}",
+        "confirmed_date_display": (
+            format_date_for_jst_display(target_bill.created_at)
+            if target_bill.created_at is not None
+            else "- - - - / - - / - -"
+        ),
+        "total_electricity_display": (
+            format_yen_for_display(target_bill.billing_amount)
+            if target_bill.billing_amount is not None
+            else "- 円"
+        ),
+        "share_amount_display": (
+            format_yen_for_display(target_member.share_amount)
+            if target_member.share_amount is not None
+            else "- 円"
+        ),
+        "device_usage_amount_display": (
+            format_yen_for_display(target_member.device_usage_amount)
+            if target_member.device_usage_amount is not None
+            else "- 円"
+        ),
+        "equal_share_amount_display": (
+            format_yen_for_display(target_member.equal_share_amount)
+            if target_member.equal_share_amount is not None
+            else "- 円"
+        ),
+        "unit_price_display": (
+            format_decimal_for_display(target_bill.unit_price)
+            if target_bill.unit_price is not None
+            else "-"
+        ),
+    }
+
+    return render_template(
+        "user_share_amount_detail.html",
+        detail=detail_view_data,
+    )
 
 
 @app.route("/admin/top", methods=["GET", "POST"])

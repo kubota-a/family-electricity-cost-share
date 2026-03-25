@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>いえ電シェア - シェア金額詳細</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #fff0f3;
+            --header-bg: #ffffff;
+            --text-color: #4a4a4a;
+            --accent-pink: #f5b7b1;
+            --accent-pink-dark: #c47a8a;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            --shadow-light: 0 2px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .phone-container {
+            width: 100%;
+            max-width: 430px;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (min-width: 431px) {
+            body {
+                padding: 20px;
+                align-items: center;
+                height: 100vh;
+                overflow: hidden;
+            }
+            .phone-container {
+                width: min(390px, 100%);
+                min-height: auto;
+                aspect-ratio: 9 / 19.5;
+                border-radius: 40px;
+                border: 8px solid #222;
+                box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+                overflow: hidden;
+            }
+        }
+
+        header {
+            background-color: var(--header-bg);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        .header-logo i { color: var(--accent-pink); font-size: 1.4rem; }
+        .header-logo {
+            color: inherit;
+            text-decoration: none;
+        }
+        .header-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            color: var(--text-color);
+            font-size: clamp(0.9rem, 4vw, 1.1rem);
+        }
+
+        main {
+            flex-grow: 1;
+            padding: 30px 25px 100px;
+            overflow-y: auto;
+            text-align: center;
+        }
+
+        .detail-header {
+            margin-bottom: 35px;
+        }
+
+        .period-title {
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .confirm-date {
+            font-size: 0.9rem;
+            color: #777;
+        }
+
+        .total-electricity {
+            display: block;
+            font-size: clamp(0.825rem, 3.75vw, 1.05rem);
+            color: #777;
+            line-height: 1.6;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        .total-amount-card {
+            background: var(--card-bg);
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            padding: 30px 20px;
+            margin-bottom: 35px;
+            box-shadow: var(--shadow);
+        }
+
+        .total-label {
+            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .total-value {
+            font-size: clamp(1.5rem, 7vw, 2rem);
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .breakdown-title-area {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding-left: 5px;
+        }
+
+        .breakdown-title-area i {
+            color: var(--accent-pink-dark);
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+        }
+
+        .breakdown-title-area span {
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .breakdown-card {
+            background: var(--card-bg);
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: var(--shadow-light);
+            margin-bottom: 20px;
+        }
+
+        .breakdown-row {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+        }
+
+        .breakdown-row:first-child {
+            border-bottom: 1px solid #eee;
+        }
+
+        .item-label {
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            color: var(--text-color);
+        }
+
+        .item-value {
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+        }
+
+        .calculation-note {
+            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            color: #777;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: var(--bg-color);
+            padding: 15px 20px 30px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .footer-button {
+            width: 100%;
+            max-width: 350px;
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            background: #f5b7b1;
+            color: #7a3a48;
+            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            letter-spacing: 0.08em;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <header>
+        <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
+            <i class="fas fa-home"></i>
+        </a>
+        <div class="header-title">シェア金額詳細</div>
+    </header>
+
+    <main>
+        <div class="detail-header">
+            <span class="period-title">{{ detail.period_display }}</span>
+            <span class="confirm-date">確定日 {{ detail.confirmed_date_display }}</span>
+            <span class="total-electricity">お家全体の電気代　{{ detail.total_electricity_display }}</span>
+        </div>
+
+        <div class="total-amount-card" style="background-color: {{ current_user.color }};">
+            <span class="total-label">{{ current_user.name }}さんのシェア金額</span>
+            <span class="total-value">{{ detail.share_amount_display }}</span>
+        </div>
+
+        <div class="breakdown-title-area">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span>内訳</span>
+        </div>
+
+        <div class="breakdown-card">
+            <div class="breakdown-row">
+                <span class="item-label">機器使用分</span>
+                <span class="item-value">{{ detail.device_usage_amount_display }}</span>
+            </div>
+            <div class="breakdown-row">
+                <span class="item-label">割り勘分</span>
+                <span class="item-value">{{ detail.equal_share_amount_display }}</span>
+            </div>
+        </div>
+
+        <p class="calculation-note">
+            ※単価 <strong>{{ detail.unit_price_display }}</strong> 円/kWhで<br>
+            計算されています
+        </p>
+    </main>
+
+    <footer>
+        <a class="footer-button" href="{{ url_for('user_share_amounts') }}">シェア金額一覧に戻る</a>
+    </footer>
+</div>
+
+</body>
+</html>
