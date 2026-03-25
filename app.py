@@ -1873,7 +1873,9 @@ def admin_bills():
             {
                 "member_name": card.user.name,
                 "member_color": card.user.color,
-                "share_amount_display": f"{int(Decimal(str(card.share_amount))):,}円",
+                "share_amount_display": format_yen_for_display(card.share_amount),
+                "device_usage_amount_display": format_yen_for_display(card.device_usage_amount),
+                "equal_share_amount_display": format_yen_for_display(card.equal_share_amount),
             }
             for card in latest_member_cards
         ]
