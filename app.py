@@ -1317,7 +1317,63 @@ def user_share_amounts():
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    return render_template("user_share_amounts.html")
+    # Step 1: 画面確認用のダミー表示データ（Step 2でDB取得へ差し替え）
+    latest_record = {
+        "bill_id": 999,
+        "period_display": "2025/10/22～2025/11/19 利用分",
+        "share_amount_display": "○○○○円",
+    }
+    history_records = [
+        {
+            "bill_id": 998,
+            "period_display": "2025/09/20～2025/10/21利用分",
+            "share_amount_display": "○○○○円",
+        },
+        {
+            "bill_id": 997,
+            "period_display": "2025/08/21～2025/09/19利用分",
+            "share_amount_display": "○○○○円",
+        },
+        {
+            "bill_id": 996,
+            "period_display": "2025/07/21～2025/08/20利用分",
+            "share_amount_display": "○○○○円",
+        },
+    ]
+    has_records = True
+
+    return render_template(
+        "user_share_amounts.html",
+        has_records=has_records,
+        latest_record=latest_record,
+        history_records=history_records,
+    )
+
+
+@app.route("/user/share-amounts/<int:finalized_bill_id>", methods=["GET"])
+@login_required
+def user_share_amount_detail(finalized_bill_id):
+    """一般ユーザー用のシェア金額詳細画面（Step 1 の最小実装）を表示する。"""
+    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    if current_user.role != "user":
+        return redirect_by_role(current_user)
+
+    # Step 1: 最小表示用のダミー値（Step 3で対象IDのDB取得へ差し替え）
+    detail_view_data = {
+        "bill_id": finalized_bill_id,
+        "period_display": "2025/10/22～2025/11/19",
+        "confirmed_date_display": "2025/12/21",
+        "total_electricity_display": "〇〇〇〇〇円",
+        "share_amount_display": "〇〇〇〇円",
+        "device_usage_amount_display": "〇〇〇〇円",
+        "equal_share_amount_display": "〇〇〇〇円",
+        "unit_price_display": "28.5",
+    }
+
+    return render_template(
+        "user_share_amount_detail.html",
+        detail=detail_view_data,
+    )
 
 
 @app.route("/admin/top", methods=["GET", "POST"])
