@@ -80,46 +80,42 @@
         .member-card { 
             min-width: calc((100% - (12px * 5)) / 5.5); 
             flex: 0 0 auto; 
-            height: 120px; 
-            border-radius: 16px; 
+            min-height: 170px;
+            border-radius: 12px; 
             border: 1px solid var(--border-color); 
             padding: 15px; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
             position: relative; 
-            transition: 0.2s; 
         }
-        
-        .card-hanako { background-color: #fff0f3; }
-        .card-taro { background-color: #f0f4ff; }
-        .card-ichiro { background-color: #f1fcf0; }
 
-        .member-name { font-size: 1.3rem; font-weight: bold; margin-bottom: 8px; }
-        
-        .member-amount { 
-            background-color: #ffffff; 
-            width: 90%; 
-            padding: 8px 0; 
-            border-radius: 10px; 
-            text-align: center; 
-            font-size: 1.2rem; 
-            font-weight: bold; 
-            color: var(--primary-color); 
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        .member-card h3 {
+            font-size: 1rem;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+            text-align: center;
+            color: #555;
         }
+
+        .price-details-box { background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 12px; }
+        .price-line { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; color: #444; }
+        .price-line.total { font-weight: bold; color: var(--primary-color); border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 8px; font-size: 0.95rem; }
+        .history-section-title { margin-top: 34px; }
 
         /* 履歴テーブル */
         .table-scroll-box { background: #fff; border-radius: 12px; border: 1px solid var(--border-color); overflow-y: auto; max-height: 500px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
         table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
         thead th { position: sticky; top: 0; background: #fff5f5; z-index: 10; padding: 15px; text-align: left; color: #884444; border-bottom: 2px solid var(--border-color); }
-        tbody tr { cursor: pointer; transition: background 0.2s; }
+        tbody tr[data-bill-id] { cursor: pointer; transition: background 0.2s; }
         
         @media (hover: hover) {
-            tbody tr:hover { background-color: var(--hover-row-color); }
+            tbody tr[data-bill-id]:hover { background-color: var(--hover-row-color); }
         }
         tbody tr.selected-row { background-color: var(--hover-row-color) !important; }
+        .empty-history-message {
+            text-align: center;
+            color: #666;
+            font-weight: bold;
+        }
         
         td { padding: 15px; border-bottom: 1px solid var(--border-color); }
         .text-right { text-align: right; }
@@ -174,10 +170,10 @@
 
         <!-- 確定日・請求総額 -->
         <div class="header-section">
-            <div class="date-summary">{{ latest_date_summary|safe }}</div>
+            <div class="date-summary" id="billDateSummary">{{ latest_date_summary|safe }}</div>
             <div class="price-summary">
-                <span class="total">{{ latest_total_amount_display }}</span>
-                <span class="unit-price">{{ latest_unit_price_display }}</span>
+                <span class="total" id="billTotalAmount">{{ latest_total_amount_display }}</span>
+                <span class="unit-price" id="billUnitPrice">{{ latest_unit_price_display }}</span>
             </div>
         </div>
 
@@ -187,20 +183,28 @@
                 {% if member_cards %}
                 {% for member in member_cards %}
                 <div class="member-card" style="background-color: {{ member.member_color }};">
-                    <div class="member-name">{{ member.member_name }}</div>
-                    <div class="member-amount">{{ member.share_amount_display }}</div>
+                    <h3>{{ member.member_name }}</h3>
+                    <div class="price-details-box">
+                        <div class="price-line total"><span>シェア金額：</span><span>{{ member.share_amount_display }}</span></div>
+                        <div class="price-line"><span>機器使用分：</span><span>{{ member.device_usage_amount_display }}</span></div>
+                        <div class="price-line"><span>割り勘分：</span><span>{{ member.equal_share_amount_display }}</span></div>
+                    </div>
                 </div>
                 {% endfor %}
                 {% else %}
-                <div class="member-card card-hanako">
-                    <div class="member-name">-</div>
-                    <div class="member-amount">- - -円</div>
+                <div class="member-card" style="background-color: #f2f2f2;">
+                    <h3>-</h3>
+                    <div class="price-details-box">
+                        <div class="price-line total"><span>シェア金額：</span><span>- - -円</span></div>
+                        <div class="price-line"><span>機器使用分：</span><span>- - -円</span></div>
+                        <div class="price-line"><span>割り勘分：</span><span>- - -円</span></div>
+                    </div>
                 </div>
                 {% endif %}
             </div>
         </div>
 
-        <div class="section-title">電気料金の確定履歴</div>
+        <div class="section-title history-section-title">電気料金の確定履歴</div>
         <div class="table-scroll-box">
             <table id="historyTable">
                 <thead>
@@ -214,7 +218,7 @@
                 <tbody>
                     {% if history_rows %}
                     {% for row in history_rows %}
-                    <tr onclick="selectRow(this)">
+                    <tr data-bill-id="{{ row.bill_id }}" class="{{ 'selected-row' if loop.first else '' }}" onclick="selectRow(this)">
                         <td>{{ row.period_display }}</td>
                         <td>{{ row.created_date_display }}</td>
                         <td>{{ row.unit_price_display }}</td>
@@ -223,10 +227,7 @@
                     {% endfor %}
                     {% else %}
                     <tr>
-                        <td>- - - - / - - / - -～- - - - / - - / - -</td>
-                        <td>- - - - / - - / - -</td>
-                        <td>- - 円/kWh</td>
-                        <td class="text-right">¥ - - -</td>
+                        <td colspan="4" class="empty-history-message">まだ確定された電気料金はありません</td>
                     </tr>
                     {% endif %}
                 </tbody>
@@ -236,10 +237,62 @@
     </main>
 
     <script>
+        const billDetailsById = {{ bill_details_by_id|tojson }};
+        const defaultBillDetail = {{ default_bill_detail|tojson }};
+        const billDateSummary = document.getElementById('billDateSummary');
+        const billTotalAmount = document.getElementById('billTotalAmount');
+        const billUnitPrice = document.getElementById('billUnitPrice');
+        const memberCarousel = document.getElementById('memberCarousel');
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderMemberCards(cards) {
+            const safeCards = (Array.isArray(cards) && cards.length > 0)
+                ? cards
+                : defaultBillDetail.member_cards;
+            memberCarousel.innerHTML = safeCards.map((member) => `
+                <div class="member-card" style="background-color: ${escapeHtml(member.member_color)};">
+                    <h3>${escapeHtml(member.member_name)}</h3>
+                    <div class="price-details-box">
+                        <div class="price-line total"><span>シェア金額：</span><span>${escapeHtml(member.share_amount_display)}</span></div>
+                        <div class="price-line"><span>機器使用分：</span><span>${escapeHtml(member.device_usage_amount_display)}</span></div>
+                        <div class="price-line"><span>割り勘分：</span><span>${escapeHtml(member.equal_share_amount_display)}</span></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderBillDetail(detail) {
+            const target = detail || defaultBillDetail;
+            billDateSummary.innerHTML = target.date_summary_html;
+            billTotalAmount.textContent = target.total_amount_display;
+            billUnitPrice.textContent = target.unit_price_display;
+            renderMemberCards(target.member_cards);
+        }
+
         function selectRow(row) {
-            const rows = document.querySelectorAll('#historyTable tbody tr');
+            const rows = document.querySelectorAll('#historyTable tbody tr[data-bill-id]');
             rows.forEach(r => r.classList.remove('selected-row'));
             row.classList.add('selected-row');
+
+            const billId = row.dataset.billId;
+            renderBillDetail(billDetailsById[billId] || defaultBillDetail);
+        }
+
+        // 初期表示は最新行（先頭行）の詳細を表示する
+        const selectedRow = document.querySelector('#historyTable tbody tr.selected-row[data-bill-id]')
+            || document.querySelector('#historyTable tbody tr[data-bill-id]');
+        if (selectedRow) {
+            selectRow(selectedRow);
+        } else {
+            renderBillDetail(defaultBillDetail);
         }
     </script>
 </body>

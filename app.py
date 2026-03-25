@@ -1844,6 +1844,53 @@ def admin_bill_confirm_preview():
 @admin_required
 def admin_bills():
     """管理者用の確定済み電気料金一覧画面を表示する。"""
+    user_members = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+
+    # 未計算状態で表示するプレースホルダーカードを作る
+    def build_uncalculated_member_cards():
+        return [
+            {
+                "member_name": member.name,
+                "member_color": "#f2f2f2",
+                "share_amount_display": "- - - - -円",
+                "device_usage_amount_display": "- - - - -円",
+                "equal_share_amount_display": "- - - - -円",
+            }
+            for member in user_members
+        ]
+
+    # 1件分の確定済み請求から、画面表示用カード配列を組み立てる
+    def build_member_cards_for_bill(finalized_bill):
+        if (
+            finalized_bill is None
+            or not finalized_bill.finalized_bill_members
+            or any(member.user is None for member in finalized_bill.finalized_bill_members)
+        ):
+            return build_uncalculated_member_cards()
+
+        sorted_members = sorted(
+            finalized_bill.finalized_bill_members,
+            key=lambda member: (
+                -Decimal(str(member.share_amount)),
+                member.user_id,
+            ),
+        )
+        return [
+            {
+                "member_name": member.user.name,
+                "member_color": member.user.color,
+                "share_amount_display": format_yen_for_display(member.share_amount),
+                "device_usage_amount_display": format_yen_for_display(member.device_usage_amount),
+                "equal_share_amount_display": format_yen_for_display(member.equal_share_amount),
+            }
+            for member in sorted_members
+        ]
+
     finalized_bills = (
         FinalizedBill.query
         .options(joinedload(FinalizedBill.finalized_bill_members).joinedload(FinalizedBillMember.user))
@@ -1862,29 +1909,16 @@ def admin_bills():
         latest_unit_price_display = (
             f"/ 単価　{format_decimal_for_display(Decimal(str(latest_bill.unit_price)))}円/kWh"
         )
-        latest_member_cards = sorted(
-            latest_bill.finalized_bill_members,
-            key=lambda member: (
-                -Decimal(str(member.share_amount)),
-                member.user_id,
-            ),
-        )
-        member_cards = [
-            {
-                "member_name": card.user.name,
-                "member_color": card.user.color,
-                "share_amount_display": f"{int(Decimal(str(card.share_amount))):,}円",
-            }
-            for card in latest_member_cards
-        ]
+        member_cards = build_member_cards_for_bill(latest_bill)
     else:
         latest_date_summary = "確定日 - - - - / - - / - -<br>- - - - / - - / - -～- - - - / - - / - -利用分"
         latest_total_amount_display = "請求総額　¥ - - -"
         latest_unit_price_display = "/ 単価　- - 円/kWh"
-        member_cards = []
+        member_cards = build_uncalculated_member_cards()
 
     history_rows = [
         {
+            "bill_id": bill.id,
             "period_display": (
                 f"{format_date_for_jst_display(bill.period_start)}～"
                 f"{format_date_for_jst_display(bill.period_end)}"
@@ -1896,6 +1930,26 @@ def admin_bills():
         for bill in finalized_bills
     ]
 
+    bill_details_by_id = {
+        str(bill.id): {
+            "date_summary_html": (
+                f"確定日 {format_date_for_jst_display(bill.created_at)}<br>"
+                f"{format_date_for_jst_display(bill.period_start)}～"
+                f"{format_date_for_jst_display(bill.period_end)}利用分"
+            ),
+            "total_amount_display": f"請求総額　¥ {int(Decimal(str(bill.billing_amount))):,}",
+            "unit_price_display": f"/ 単価　{format_decimal_for_display(Decimal(str(bill.unit_price)))}円/kWh",
+            "member_cards": build_member_cards_for_bill(bill),
+        }
+        for bill in finalized_bills
+    }
+    default_bill_detail = {
+        "date_summary_html": "確定日 - - - - / - - / - -<br>- - - - / - - / - -～- - - - / - - / - -利用分",
+        "total_amount_display": "請求総額　¥ - - -",
+        "unit_price_display": "/ 単価　- - 円/kWh",
+        "member_cards": build_uncalculated_member_cards(),
+    }
+
     return render_template(
         "admin_bills.html",
         latest_date_summary=latest_date_summary,
@@ -1903,6 +1957,8 @@ def admin_bills():
         latest_unit_price_display=latest_unit_price_display,
         member_cards=member_cards,
         history_rows=history_rows,
+        bill_details_by_id=bill_details_by_id,
+        default_bill_detail=default_bill_detail,
     )
 
 
