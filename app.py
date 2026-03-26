@@ -686,6 +686,7 @@ def user_top():
         .join(Device, DeviceUsageLog.device_id == Device.id)
         .filter(
             Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
             DeviceUsageLog.end_time.is_(None),
         )
         .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
@@ -763,6 +764,7 @@ def user_usage_start():
         .join(Device, DeviceUsageLog.device_id == Device.id)
         .filter(
             Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
             DeviceUsageLog.end_time.is_(None),
         )
         .first()
@@ -795,6 +797,7 @@ def user_usage_stop():
         .join(Device, DeviceUsageLog.device_id == Device.id)
         .filter(
             Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
             DeviceUsageLog.end_time.is_(None),
         )
         .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
@@ -1680,6 +1683,7 @@ def admin_top():
         .options(joinedload(DeviceUsageLog.device).joinedload(Device.user))
         .filter(
             User.role == "user",
+            DeviceUsageLog.deleted_at.is_(None),
             DeviceUsageLog.end_time.isnot(None),
         )
     )
