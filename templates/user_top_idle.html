@@ -111,16 +111,15 @@
 
         /* モーダルオーバーレイ */
         .modal-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
+            padding: 16px;
             background-color: rgba(0, 0, 0, 0.4); /* 背景を少し暗く */
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 100;
+            overflow-y: auto;
+            z-index: 1000;
         }
 
         .modal-overlay.active {
@@ -129,8 +128,9 @@
 
         /* モーダルコンテンツ */
         .modal-content {
-            width: 85%;
-            background: #ffffff;
+            width: min(90%, 360px);
+            max-height: calc(100dvh - 32px);
+            background: var(--card-bg);
             border-radius: 30px;
             padding: 40px 20px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
@@ -138,6 +138,20 @@
             display: flex;
             flex-direction: column;
             gap: 25px;
+            overflow-y: auto;
+        }
+
+        @media (min-width: 431px) {
+            .modal-overlay {
+                position: absolute;
+                inset: 0;
+                padding: 0;
+                overflow-y: visible;
+                z-index: 100;
+            }
+            .modal-content {
+                max-height: 90%;
+            }
         }
 
         .modal-title {

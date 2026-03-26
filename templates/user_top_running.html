@@ -214,24 +214,24 @@
         }
 
         .modal-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
+            padding: 16px;
             background-color: rgba(0, 0, 0, 0.4);
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 100;
+            overflow-y: auto;
+            z-index: 1000;
         }
 
         .modal-overlay.active {
             display: flex;
         }
 
-        #stopConfirmModal .modal-content {
-            width: 85%;
+        .modal-content {
+            width: min(90%, 360px);
+            max-height: calc(100dvh - 32px);
             background: var(--card-bg);
             border-radius: 30px;
             padding: 30px 20px;
@@ -240,6 +240,20 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
+            overflow-y: auto;
+        }
+
+        @media (min-width: 431px) {
+            .modal-overlay {
+                position: absolute;
+                inset: 0;
+                padding: 0;
+                overflow-y: visible;
+                z-index: 100;
+            }
+            .modal-content {
+                max-height: 90%;
+            }
         }
 
         #stopConfirmModal .modal-title {
