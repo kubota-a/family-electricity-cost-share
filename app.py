@@ -699,19 +699,8 @@ def user_top():
         app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
         estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
 
-        # DB時刻がタイムゾーンなしで返る環境でも計算が崩れないよう補正する
-        running_start_time = running_log.start_time
-        if running_start_time.tzinfo is None:
-            running_start_time = datetime(
-                running_start_time.year,
-                running_start_time.month,
-                running_start_time.day,
-                running_start_time.hour,
-                running_start_time.minute,
-                running_start_time.second,
-                running_start_time.microsecond,
-                tzinfo=timezone.utc,
-            )
+        # user_topでも、日時は全体方針どおりUTC awareのみ許可する
+        running_start_time = ensure_utc_aware(running_log.start_time)
 
         return render_template(
             "user_top_running.html",
