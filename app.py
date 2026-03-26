@@ -918,7 +918,7 @@ def user_usage_new():
         try:
             db.session.add(new_log)
             db.session.commit()
-        except Exception as e:
+        except Exception:
             app.logger.exception("user_usage_new: 記録保存中に例外が発生しました")
             db.session.rollback()
             flash("記録の保存に失敗しました。", "danger")
@@ -1104,7 +1104,7 @@ def user_usage_edit(usage_log_id):
             usage_log_id=usage_log_id,
         )
 
-    # 編集画面の更新処理（Step 3: バリデーション実装）
+    # 編集フォームの入力値を検証し、問題がなければ記録を更新する
     if request.method == "POST":
         form_data = {
             "device_id": request.form.get("device_id", "").strip(),
@@ -1198,7 +1198,7 @@ def user_usage_edit(usage_log_id):
 
         try:
             db.session.commit()
-        except Exception as e:
+        except Exception:
             app.logger.exception("user_usage_edit: 記録更新中に例外が発生しました")
             db.session.rollback()
             flash("記録の更新に失敗しました。", "danger")
@@ -1277,7 +1277,7 @@ def user_usage_delete(usage_log_id):
         target_usage_log.deleted_at = datetime.now(timezone.utc)
         try:
             db.session.commit()
-        except Exception as e:
+        except Exception:
             app.logger.exception("user_usage_delete: 記録削除中に例外が発生しました")
             db.session.rollback()
             flash("記録の削除に失敗しました。", "danger")
@@ -1306,7 +1306,7 @@ def user_usage_delete(usage_log_id):
 @app.route("/user/share-amounts", methods=["GET"])
 @login_required
 def user_share_amounts():
-    """一般ユーザー用のシェア金額一覧画面（Step 1 の最小実装）を表示する。"""
+    """一般ユーザー用のシェア金額一覧画面を表示する。"""
     # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
@@ -1381,7 +1381,7 @@ def user_share_amount_detail(finalized_bill_id):
 
     target_bill = target_member.finalized_bill
 
-    # Step 3: 一覧から受け取った対象IDの最小表示データを作る
+    # 一覧から受け取った対象IDをもとに、詳細表示用データを作る
     period_start_display = (
         format_date_for_jst_display(target_bill.period_start)
         if target_bill.period_start is not None
@@ -1442,7 +1442,7 @@ def admin_top():
     selected_price_mode = "manual"
     manual_input_override = None
 
-    # Step 3/4: 仮単価更新
+    # 仮単価更新の入力を受け取り、更新方法ごとに検証する
     if request.method == "POST":
         has_post_error = False
         update_mode = request.form.get("estimated_price_mode", "manual")
@@ -1545,7 +1545,7 @@ def admin_top():
     )
     user_member_ids = {member.id for member in user_members}
 
-    # 未確定記録一覧の絞り込み入力を受け取る（Step 5）
+    # 未確定記録一覧の絞り込み入力値を受け取る
     selected_member_id = request.args.get("member_id", "").strip()
     filter_start_date = request.args.get("start_date", "").strip()
     filter_end_date = request.args.get("end_date", "").strip()
@@ -1812,7 +1812,7 @@ def admin_top():
 @login_required
 @admin_required
 def admin_bill_confirm():
-    """管理者用の電気料金確定画面（Step 2: 入力受け取りとプレビュー）を表示する。"""
+    """管理者用の電気料金確定画面を表示し、入力値からプレビューを作成する。"""
     base_context = get_admin_bill_confirm_base_context()
     is_initial_confirm = base_context["is_initial_confirm"]
     fixed_period_start_utc = base_context["fixed_period_start_utc"]
