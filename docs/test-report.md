@@ -1664,3 +1664,38 @@
 - [x] user_top_running で「忘れた分を追加」「記録をみる」「運転を停止」ボタンが押せる
 - [x] user_top_idle のログアウトモーダルが開閉できる
 - [x] user_top_running の停止確認モーダルが開閉できる
+
+-------------------------
+
+## ■ ユーザー側モーダルのスマホ表示仕様統一
+実施：2026-03-26
+
+### 【実装確認】
+- [x] ユーザー側でモーダルを使っているテンプレートが user_top_idle.html / user_top_running.html / user_usage_logs.html の3画面で洗い出されている
+- [x] user_usage_logs.html は既に「スマホ時 fixed、PC時 media query で absolute」に対応済みで、今回の基準画面として扱える
+- [x] user_top_idle.html の `.modal-overlay` はスマホ幅で `position: fixed` / `inset: 0` / `padding` / `overflow-y: auto` / `z-index` を持つ構成に修正されている
+- [x] user_top_idle.html の `.modal-content` に `max-height` / `overflow-y: auto` があり、スマホ高さ不足時の見切れ対策が入っている
+- [x] user_top_running.html の `.modal-overlay` もスマホ幅で `position: fixed` ベースに修正されている
+- [x] user_top_running.html のモーダル本体にも `max-height` / `overflow-y: auto` が入り、見切れにくい構成になっている
+- [x] 両画面とも PC幅では `@media (min-width: 431px)` 内で `.modal-overlay` を `position: absolute` に戻し、従来のフレーム内表示を維持する構成になっている
+- [x] HTML構造、主要文言、`url_for(...)`、form の action / method、ボタン役割、JavaScript の基本挙動は変更されていない
+- [x] user_top_idle.html の `.modal-content` 幅が `user_usage_logs.html` 基準の `width: min(90%, 360px)` に揃えられている
+- [x] user_top_running.html の `.modal-content` 幅が `user_usage_logs.html` 基準の `width: min(90%, 360px)` に揃えられている
+- [x] user_top_idle.html / user_top_running.html ともに、「モーダル基本定義 → PC用 media query」の定義順に整理されている
+- [x] user_top_idle.html / user_top_running.html のモーダル背景色指定が `user_usage_logs.html` と同系統の構成に揃えられている
+
+---
+
+### 【手動テスト】
+- [x] スマホ実機で user_top_idle の「運転開始」確認モーダル本体が表示される
+- [x] スマホ実機で user_top_idle の「ログアウト」確認モーダル本体が表示される
+- [x] スマホ実機で user_top_idle の各モーダルが「やめる」ボタンで閉じられる
+- [x] スマホ実機で user_top_idle の各モーダルが背景タップで閉じられる
+- [x] スマホ実機で user_top_running の「運転停止」確認モーダル本体が表示される
+- [x] スマホ実機で user_top_running のモーダルが「やめる」ボタンで閉じられる
+- [x] スマホ実機で user_top_running のモーダルが背景タップで閉じられる
+- [x] スマホ実機で user_top_idle の「開始する」操作が従来どおり動く
+- [x] スマホ実機で user_top_running の「記録を終了する」操作が従来どおり動く
+- [x] PCブラウザで user_top_idle / user_top_running のモーダルが従来どおりスマホ風フレーム内で表示される
+- [x] PCブラウザで uuser_usage_logs のモーダル横幅が不自然に広がらず、使用記録一覧画面と同系統のサイズ感で表示される
+- [x] スマホ実機で user_usage_logs のモーダル横幅が画面からはみ出さない
