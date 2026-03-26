@@ -2372,3 +2372,11 @@ def add_no_cache_headers(response):
         response.headers["Expires"] = "0"
     return response
 
+
+# =============================
+# ■ 共通：開発用サーバー起動設定
+# =============================
+if __name__ == '__main__':
+    # host='0.0.0.0' にすることで、同一Wi-Fi内のスマホなど別デバイスからアクセス可能になる
+    # ※本設定は開発環境用。Renderデプロイ時はGunicornで起動されるため影響なし
+    app.run(host='0.0.0.0', port=5000, debug=True)

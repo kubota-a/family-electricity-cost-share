@@ -27,21 +27,16 @@
             background-color: #f0f0f0;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
         }
 
         .phone-container {
             width: 100%;
             max-width: 430px;
-            height: 90vh;
+            min-height: 100vh;
             background-color: var(--bg-color);
             position: relative;
-            /* 全体の overflow-y: auto; を維持しつつ、内部スクロールと干渉しないよう管理 */
-            overflow-y: hidden;
-            border-radius: 40px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.2);
-            border: 8px solid #333;
             display: flex;
             flex-direction: column;
         }
@@ -50,14 +45,20 @@
         @media (min-width: 431px) {
             body {
                 padding: 20px;
+                align-items: center;
                 height: 100vh;
                 overflow: hidden;
             }
             .phone-container {
                 width: min(390px, 100%);
+                min-height: auto;
                 height: auto;
                 aspect-ratio: 9 / 19.5;
                 max-height: 850px;
+                overflow: hidden;
+                border-radius: 40px;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+                border: 8px solid #333;
             }
         }
 
