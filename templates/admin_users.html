@@ -91,6 +91,7 @@
         .btn-delete-row { background: none; border: none; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; }
         .btn-delete-row:hover { color: #d32f2f; }
         .empty-row { height: 51px; } /* TDのpadding等に合わせた高さ */
+        .empty-state-row { text-align: center; color: #666; font-weight: bold; }
 
         /* --- 削除確認モーダル --- */
         .modal-overlay {
@@ -404,32 +405,33 @@
                 </thead>
                 <tbody>
                     {# ユーザー一覧をモックのテーブル行へ埋め込む #}
-                    {% for user in users %}
+                    {% if users %}
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.login_id }}</td>
+                            <td>{{ user.name }}</td>
+                            <td>{{ "管理者" if user.role == "admin" else "メンバー" }}</td>
+                            <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ user.color }};"></span></td>
+                            <td>{{ user.created_at.strftime('%Y/%m/%d') if user.created_at else "" }}</td>
+                            <td>
+                                <button
+                                    type="button"
+                                    class="btn-delete-row"
+                                    data-delete-url="{{ url_for('admin_user_delete', user_id=user.id) }}"
+                                    data-user-name="{{ user.name }}"
+                                    data-login-id="{{ user.login_id }}"
+                                    onclick="openDeleteModal(this)"
+                                >
+                                    <i class="fas fa-trash-alt"></i> 削除
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
                     <tr>
-                        <td>{{ user.login_id }}</td>
-                        <td>{{ user.name }}</td>
-                        <td>{{ "管理者" if user.role == "admin" else "メンバー" }}</td>
-                        <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ user.color }};"></span></td>
-                        <td>{{ user.created_at.strftime('%Y/%m/%d') if user.created_at else "" }}</td>
-                        <td>
-                            <button
-                                type="button"
-                                class="btn-delete-row"
-                                data-delete-url="{{ url_for('admin_user_delete', user_id=user.id) }}"
-                                data-user-name="{{ user.name }}"
-                                data-login-id="{{ user.login_id }}"
-                                onclick="openDeleteModal(this)"
-                            >
-                                <i class="fas fa-trash-alt"></i> 削除
-                            </button>
-                        </td>
+                        <td colspan="6" class="empty-state-row">登録されているシェアメンバーがいません</td>
                     </tr>
-                    {% endfor %}
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>

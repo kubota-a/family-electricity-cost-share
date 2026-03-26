@@ -163,6 +163,19 @@
             color: #d9534f;
         }
 
+        .empty-state-message {
+            width: 100%;
+            background: #fff;
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: #666;
+            font-weight: bold;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
         .confirm-area {
             display: flex;
             align-items: center;
@@ -238,7 +251,7 @@
         <div class="form-group">
             <span class="label-text">使った機器</span>
             <div class="select-wrapper">
-                <select name="device_id">
+                <select name="device_id" {% if not devices %}disabled{% endif %}>
                     <option value="" disabled {% if not form_data.device_id %}selected{% endif %}>選択してください</option>
                     {% for device in devices %}
                     <option
@@ -251,6 +264,12 @@
                 </select>
             </div>
         </div>
+        {% if not devices %}
+        <div class="empty-state-message">
+            登録されている機器がありません。<br>
+            機器を登録してから、使用記録を追加してください。
+        </div>
+        {% endif %}
 
         <div class="form-group">
             <span class="label-text">運転を開始した日時</span>
@@ -278,7 +297,7 @@
         </div>
 
         <div class="button-group">
-            <button class="btn-main" type="submit">追加する</button>
+            <button class="btn-main" type="submit" {% if not devices %}disabled{% endif %}>追加する</button>
             <a href="{{ url_for('user_top') }}" class="btn-cancel">やめる</a>
         </div>
         </form>
