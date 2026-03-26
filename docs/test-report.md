@@ -1571,3 +1571,44 @@
 - [x] 電気料金確定画面で確定成功時、flashが緑系で表示される
 - [x] 電気料金確定画面で入力エラー時、flashが赤系で表示される
 - [x] 確定済み電気料金一覧画面でflashが従来どおり表示される
+
+-------------------------
+
+## ■ flashカテゴリ付与と一般ユーザー画面のflash表示統一
+実施：2026-03-26
+
+### 【実装確認】
+- [x] app.py 全体のカテゴリなし `flash()` を調査し、未指定7件をすべて修正した
+- [x] `redirect_by_role` の `flash()` に `danger` を付与した
+- [x] `login` のログイン失敗メッセージに `danger` を付与した
+- [x] `user_usage_start` のエラーメッセージに `danger` を付与した
+- [x] `user_usage_stop` のエラーメッセージに `danger` を付与した
+- [x] app.py 全体でカテゴリなし `flash()` が残っていないことを確認した
+- [x] `login.html` の flash 表示を `with_categories=True` に変更した
+- [x] `user_top_idle.html` の flash 表示を `with_categories=True` に変更した
+- [x] `user_top_running.html` の flash 表示を `with_categories=True` に変更した
+- [x] `user_usage_new.html` の flash 表示を `success / danger / notice` の安全分岐に変更した
+- [x] `user_usage_logs.html` の flash 表示を `success / danger / notice` の安全分岐に変更した
+- [x] `user_usage_edit.html` の flash 表示を `success / danger / notice` の安全分岐に変更した
+- [x] `user_usage_delete.html` の flash 表示を `success / danger / notice` の安全分岐に変更した
+- [x] 一般ユーザー側画面の既存レイアウト・文言・導線は維持している
+- [x] `user_share_amounts.html` と `user_share_amount_detail.html` は flash 表示なしのため修正不要であることを確認した
+- [x] user_usage_stop の成功時リダイレクト先が user_usage_logs に変更されている
+- [x] 運転停止成功時に success カテゴリ付き flash が追加されている
+- [x] 成功時flashの文言が、「忘れた分を追加する」後の使用記録一覧画面と同じになっている
+- [x] 停止成功時の変更は user_usage_stop の成功時処理のみに限定されている
+- [x] 停止失敗時の既存挙動（danger flash + user_top へ戻す）は維持されている
+---
+
+### 【手動テスト】
+- [x] ログイン失敗時、ログイン画面で flash が赤系で表示される
+- [x] 使用記録の新規追加成功時、使用記録一覧画面で flash が緑系で表示される
+- [x] 使用記録の新規追加入力エラー時、追加画面で flash が赤系で表示される
+- [x] 使用記録の更新成功時、使用記録一覧画面で flash が緑系で表示される
+- [x] 使用記録の更新入力エラー時、編集画面で flash が赤系で表示される
+- [x] 使用記録の削除成功時、使用記録一覧画面で flash が緑系で表示される
+- [x] 一般ユーザー側の各画面で、flash の位置や見た目が大きく崩れていない
+- [x] 運転中の機器があるユーザートップ画面で「運転停止」を実行後、使用記録一覧画面へ遷移する
+- [x] 使用記録一覧画面で成功系flashが緑系で表示される
+- [x] 成功flashの文言が「新しい記録を追加しました」になっている
+- [x] 停止した記録が一覧に反映されている
