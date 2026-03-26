@@ -92,7 +92,7 @@ DEVICE_THEME_COLOR_MAP = {
 
 # 手動入力(datetime-local)は日本時間として解釈する
 TOKYO_TIMEZONE = ZoneInfo("Asia/Tokyo")
-WEEKDAY_LABELS_JA = ["月", "火", "水", "木", "金", "土", "日"]
+UTC_MIN_AWARE = datetime(1, 1, 1, tzinfo=timezone.utc)
 
 
 @login_manager.user_loader
@@ -137,8 +137,10 @@ def parse_datetime_local_as_utc(value):
 
 def ensure_utc_aware(dt_value):
     """UTC aware datetimeとして扱える形に補正する。"""
+    if dt_value is None:
+        return None
     if dt_value.tzinfo is None:
-        return dt_value.replace(tzinfo=timezone.utc)
+        raise ValueError("naive datetime is not allowed")
     return dt_value.astimezone(timezone.utc)
 
 
@@ -146,8 +148,7 @@ def format_datetime_for_jst_display(dt_value):
     """UTC日時を日本時間へ変換し、画面表示用文字列に整形する。"""
     utc_aware_dt = ensure_utc_aware(dt_value)
     tokyo_dt = utc_aware_dt.astimezone(TOKYO_TIMEZONE)
-    weekday_label = WEEKDAY_LABELS_JA[tokyo_dt.weekday()]
-    return tokyo_dt.strftime(f"%Y/%m/%d({weekday_label}) %H:%M")
+    return tokyo_dt.strftime("%Y/%m/%d %H:%M")
 
 
 def format_datetime_for_jst_input(dt_value):
@@ -1738,7 +1739,7 @@ def admin_top():
     member_estimate_cards.sort(
         key=lambda item: (
             item["latest_start_time"] is not None,
-            item["latest_start_time"] or datetime.min.replace(tzinfo=timezone.utc),
+            item["latest_start_time"] or UTC_MIN_AWARE,
         ),
         reverse=True,
     )
@@ -2135,7 +2136,22 @@ def admin_users():
 
     # ユーザー管理画面で表示する一覧を取得（古い登録順）
     users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
-    return render_template("admin_users.html", users=users, form_data=form_data)
+    user_rows = [
+        {
+            "id": user.id,
+            "login_id": user.login_id,
+            "name": user.name,
+            "role": user.role,
+            "color": user.color,
+            "created_at_display": (
+                format_date_for_jst_display(user.created_at)
+                if user.created_at is not None
+                else ""
+            ),
+        }
+        for user in users
+    ]
+    return render_template("admin_users.html", users=user_rows, form_data=form_data)
 
 
 @app.route("/admin/users/<int:user_id>/delete", methods=["POST"])

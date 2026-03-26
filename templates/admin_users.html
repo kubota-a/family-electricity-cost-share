@@ -412,7 +412,7 @@
                             <td>{{ user.name }}</td>
                             <td>{{ "管理者" if user.role == "admin" else "メンバー" }}</td>
                             <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ user.color }};"></span></td>
-                            <td>{{ user.created_at.strftime('%Y/%m/%d') if user.created_at else "" }}</td>
+                            <td>{{ user.created_at_display }}</td>
                             <td>
                                 <button
                                     type="button"
