@@ -243,6 +243,12 @@
             box-shadow: var(--shadow);
             font-size: 0.9rem;
         }
+        .flash-message.danger {
+            color: #d9534f;
+        }
+        .flash-message.notice {
+            color: #666;
+        }
 
         .action-grid {
             display: grid;
@@ -361,9 +367,11 @@
 
     <main>
         <h1>{{ user_name }}さんのマイページ</h1>
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="flash-message">{{ messages[-1] }}</div>
+        {% set category, message = messages[-1] %}
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
         {% endif %}
         {% endwith %}
 

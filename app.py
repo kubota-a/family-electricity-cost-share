@@ -112,7 +112,7 @@ def redirect_by_role(user):
     if user.role == "user":
         return redirect(url_for("user_top"))
 
-    flash("ロール設定が不正です。管理者に連絡してください。")
+    flash("ロール設定が不正です。管理者に連絡してください。", "danger")
     return redirect(url_for("login"))
 
 
@@ -642,14 +642,14 @@ def login():
 
     # 空欄チェック
     if not login_id or not password:
-        flash(INVALID_LOGIN_MESSAGE)
+        flash(INVALID_LOGIN_MESSAGE, "danger")
         return render_template("login.html", login_id=login_id)
 
     user = User.query.filter_by(login_id=login_id).first()
 
     # ユーザー不存在とパスワード不一致を同一メッセージに統一
     if user is None or not check_password_hash(user.password_hash, password):
-        flash(INVALID_LOGIN_MESSAGE)
+        flash(INVALID_LOGIN_MESSAGE, "danger")
         return render_template("login.html", login_id=login_id)
 
     login_user(user)
@@ -731,7 +731,7 @@ def user_usage_start():
     try:
         device_id = int(device_id_raw)
     except (TypeError, ValueError):
-        flash("開始対象の機器が不正です。")
+        flash("開始対象の機器が不正です。", "danger")
         return redirect(url_for("user_top"))
 
     # 他人の機器を開始できないよう、ログイン中ユーザー所有の機器だけ許可する
@@ -744,7 +744,7 @@ def user_usage_start():
         .first()
     )
     if target_device is None:
-        flash("開始対象の機器が見つかりません。")
+        flash("開始対象の機器が見つかりません。", "danger")
         return redirect(url_for("user_top"))
 
     # 二重開始防止のため、開始直前にもう一度「自分の運転中」を確認する
@@ -759,7 +759,7 @@ def user_usage_start():
         .first()
     )
     if running_log is not None:
-        flash("すでに運転中の機器があります。停止してから開始してください。")
+        flash("すでに運転中の機器があります。停止してから開始してください。", "danger")
         return redirect(url_for("user_top"))
 
     # 運転開始記録を作成する（TIMESTAMP WITH TIME ZONE 前提でUTCを保存）
@@ -795,12 +795,13 @@ def user_usage_stop():
 
     # 二重停止対策: すでに停止済みならエラーとして通常トップへ戻す
     if running_log is None:
-        flash("停止できる運転中の機器が見つかりません。")
+        flash("停止できる運転中の機器が見つかりません。", "danger")
         return redirect(url_for("user_top"))
 
     running_log.end_time = datetime.now(timezone.utc)
     db.session.commit()
-    return redirect(url_for("user_top"))
+    flash("新しい記録を追加しました", "success")
+    return redirect(url_for("user_usage_logs"))
 
 
 @app.route("/user/usage/new", methods=["GET", "POST"])
