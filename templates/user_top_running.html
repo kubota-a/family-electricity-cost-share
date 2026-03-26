@@ -444,6 +444,11 @@
 
     // 運転停止確認モーダルの開閉制御
     openStopConfirmModalButton.addEventListener("click", function () {
+        const deviceName = "{{ running_device_name }}";
+        if (!deviceName || deviceName.trim() === "") {
+            return;
+        }
+
         stopConfirmModal.classList.add("active");
     });
 

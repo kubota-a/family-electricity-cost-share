@@ -453,8 +453,13 @@
     // 運転開始確認モーダルの開閉制御
     startButtons.forEach(function (startButton) {
         startButton.addEventListener("click", function () {
+            const deviceName = startButton.dataset.deviceName;
+            if (!deviceName) {
+                return;
+            }
+
             pendingStartForm = startButton.closest(".start-form");
-            startConfirmDeviceBadge.textContent = startButton.dataset.deviceName;
+            startConfirmDeviceBadge.textContent = deviceName;
             startConfirmDeviceBadge.style.backgroundColor = startButton.dataset.deviceColor;
             startConfirmModal.classList.add("active");
         });

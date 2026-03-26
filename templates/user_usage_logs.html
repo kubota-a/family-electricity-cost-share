@@ -474,10 +474,16 @@
     usageCheckIcons.forEach(function (usageCheckIcon) {
         usageCheckIcon.addEventListener("click", function () {
             const modalId = usageCheckIcon.dataset.modalId;
-            const targetModal = document.getElementById(modalId);
-            if (targetModal) {
-                targetModal.classList.add("active");
+            if (!modalId) {
+                return;
             }
+
+            const targetModal = document.getElementById(modalId);
+            if (!targetModal) {
+                return;
+            }
+
+            targetModal.classList.add("active");
         });
     });
 
