@@ -44,6 +44,11 @@
 
         /* --- メインコンテンツ --- */
         .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; max-width: 1200px; }
+        .page-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; }
+        .flash-message { padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85rem; text-align: center; border: 1px solid transparent; }
+        .flash-message.success { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
+        .flash-message.danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
+        .flash-message.notice { background: #f5f5f5; color: #555; border-color: #ddd; }
 
         /* --- 新規登録フォーム --- */
         .card { background: #fff; padding: 15px 25px 25px 25px; border-radius: 24px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 30px; }
@@ -68,7 +73,6 @@
         .role-options label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: #666; font-weight: 500; }
 
         .form-footer { display: flex; justify-content: flex-end; align-items: center; gap: 20px; }
-        .inline-flash { color: #2e7d32; font-size: 0.9rem; font-weight: 500; }
         .btn-primary { background: var(--primary-color); color: #fff; border: none; padding: 10px 40px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         .btn-primary:hover { opacity: 0.8; }
 
@@ -283,8 +287,8 @@
             <a href="{{ url_for('admin_top') }}" class="nav-item">HOME</a>
             <a href="{{ url_for('admin_users') }}" class="nav-item active">シェアメンバー</a>
             <a href="{{ url_for('admin_devices') }}" class="nav-item">機器</a>
-            <a href="#" class="nav-item">電気料金の確定</a>
-            <a href="#" class="nav-item">確定済の電気料金</a>
+            <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item">電気料金の確定</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済の電気料金</a>
         </nav>
         <form action="{{ url_for('logout') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -295,6 +299,16 @@
     </aside>
 
     <main class="main-content">
+        <h2 class="page-title">&#12471;&#12455;&#12450;&#12513;&#12531;&#12496;&#12540;&#31649;&#29702;</h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% set category, message = messages[-1] %}
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
+        {% endif %}
+        {% endwith %}
+
         <div class="card">
             <div class="form-header">新規登録</div>
 
@@ -377,14 +391,6 @@
                 </div>
 
                 <div class="form-footer">
-                    <div class="inline-flash">
-                        {% set messages = get_flashed_messages() %}
-                        {% if messages %}
-                            <i class="fas fa-check-circle"></i> {{ messages[0] }}
-                        {% else %}
-                            <i class="fas fa-check-circle"></i> ここに各flashメッセージを表示
-                        {% endif %}
-                    </div>
                     <button type="submit" class="btn-primary">登録する</button>
                 </div>
             </form>

@@ -2104,15 +2104,15 @@ def admin_users():
             or not form_data["role"]
             or not form_data["theme_color"]
         ):
-            flash("すべての項目を入力してください。")
+            flash("すべての項目を入力してください。", "danger")
         # role は user/admin のみ許可
         elif form_data["role"] not in {"user", "admin"}:
-            flash("役割はメンバーまたは管理者を選択してください。")
+            flash("役割はメンバーまたは管理者を選択してください。", "danger")
         # 色丸で選んだ値だけを受け付ける
         elif form_data["theme_color"] not in THEME_COLOR_MAP:
-            flash("テーマカラーの選択が不正です。")
+            flash("テーマカラーの選択が不正です。", "danger")
         elif User.query.filter_by(login_id=form_data["login_id"]).first() is not None:
-            flash("そのIDはすでに使用されています。")
+            flash("そのIDはすでに使用されています。", "danger")
         else:
             # パスワードは平文保存せず、必ずハッシュ化して保存
             new_user = User(
@@ -2124,7 +2124,7 @@ def admin_users():
             )
             db.session.add(new_user)
             db.session.commit()
-            flash("新しいシェアメンバーを登録しました。")
+            flash("新しいシェアメンバーを登録しました。", "success")
             return redirect(url_for("admin_users"))
 
     # ユーザー管理画面で表示する一覧を取得（古い登録順）
@@ -2155,12 +2155,12 @@ def admin_user_delete(user_id):
     # ID指定で削除対象ユーザーを取得し、存在しない場合は一覧へ戻す
     target_user = db.session.get(User, user_id)
     if target_user is None:
-        flash("削除対象のシェアメンバーが見つかりません。")
+        flash("削除対象のシェアメンバーが見つかりません。", "danger")
         return redirect(url_for("admin_users"))
 
     # ログイン中のユーザー自身は削除不可（安全のため）
     if target_user.id == current_user.id:
-        flash("ログイン中のユーザー自身は削除できません。")
+        flash("ログイン中のユーザー自身は削除できません。", "danger")
         return redirect(url_for("admin_users"))
 
     # 所有機器が1台でもある場合は削除不可
@@ -2171,7 +2171,7 @@ def admin_user_delete(user_id):
         is not None
     )
     if has_owned_device:
-        flash("登録済み機器があるメンバーは削除できません。")
+        flash("登録済み機器があるメンバーは削除できません。", "danger")
         return redirect(url_for("admin_users"))
 
     # 確定済み電気料金の内訳が1件でもある場合は削除不可
@@ -2182,7 +2182,7 @@ def admin_user_delete(user_id):
         is not None
     )
     if has_finalized_bill_member:
-        flash("確定済み電気料金の内訳データがあるメンバーは削除できません。")
+        flash("確定済み電気料金の内訳データがあるメンバーは削除できません。", "danger")
         return redirect(url_for("admin_users"))
 
     # 運転中(end_time が NULL)の機器記録がある場合は削除不可
@@ -2197,12 +2197,12 @@ def admin_user_delete(user_id):
         is not None
     )
     if has_running_device:
-        flash("運転中の機器があるメンバーは削除できません。")
+        flash("運転中の機器があるメンバーは削除できません。", "danger")
         return redirect(url_for("admin_users"))
 
     db.session.delete(target_user)
     db.session.commit()
-    flash("シェアメンバーを削除しました。")
+    flash("シェアメンバーを削除しました。", "success")
 
     return redirect(url_for("admin_users"))
 
@@ -2242,10 +2242,10 @@ def admin_devices():
             or not form_data["power_kw"]
             or not form_data["theme_color"]
         ):
-            flash("すべての項目を入力してください。")
+            flash("すべての項目を入力してください。", "danger")
         # 色丸で選択できる値だけを受け付ける
         elif form_data["theme_color"] not in DEVICE_THEME_COLOR_MAP:
-            flash("テーマカラーの選択が不正です。")
+            flash("テーマカラーの選択が不正です。", "danger")
         else:
             # user_id は数値で受け取り、users に存在するIDかを確認
             try:
@@ -2256,7 +2256,7 @@ def admin_devices():
             target_user = db.session.get(User, user_id) if user_id is not None else None
             # 存在し、かつ一般ユーザー(role='user')のみ登録を許可
             if target_user is None or target_user.role != "user":
-                flash("使用メンバーの選択が不正です。")
+                flash("使用メンバーの選択が不正です。", "danger")
             else:
                 # power_kw は数値として扱い、負数や文字列を除外する
                 try:
@@ -2265,7 +2265,7 @@ def admin_devices():
                     power_kw = None
 
                 if power_kw is None or power_kw <= 0:
-                    flash("消費電力は0より大きい数値で入力してください。")
+                    flash("消費電力は0より大きい数値で入力してください。", "danger")
                 else:
                     # 色丸UIの選択値をカラーコードに変換して保存
                     new_device = Device(
@@ -2276,7 +2276,7 @@ def admin_devices():
                     )
                     db.session.add(new_device)
                     db.session.commit()
-                    flash("新しい機器を登録しました。")
+                    flash("新しい機器を登録しました。", "success")
                     return redirect(url_for("admin_devices"))
 
     # 一覧表示で使用メンバー名も同時に参照するため、関連ユーザーをまとめて取得
@@ -2297,7 +2297,7 @@ def admin_device_delete(device_id):
     # ID指定で削除対象機器を取得し、存在しない場合は一覧へ戻す
     target_device = db.session.get(Device, device_id)
     if target_device is None:
-        flash("削除対象の機器が見つかりません。")
+        flash("削除対象の機器が見つかりません。", "danger")
         return redirect(url_for("admin_devices"))
 
     # 使用記録が1件でもある機器は削除不可
@@ -2308,12 +2308,12 @@ def admin_device_delete(device_id):
         is not None
     )
     if has_usage_log:
-        flash("使用記録がある機器は削除できません。")
+        flash("使用記録がある機器は削除できません。", "danger")
         return redirect(url_for("admin_devices"))
 
     db.session.delete(target_device)
     db.session.commit()
-    flash("機器を削除しました。")
+    flash("機器を削除しました。", "success")
 
     return redirect(url_for("admin_devices"))
 
