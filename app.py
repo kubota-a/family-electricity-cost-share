@@ -620,6 +620,9 @@ def calculate_bill_confirm_preview(
     return result
 
 
+# =============================
+# ■ 共通：トップ入口
+# =============================
 @app.route("/")
 def index():
     """アプリのトップ入口。ログイン状態とロールに応じて適切な画面へリダイレクトする。"""
@@ -629,6 +632,9 @@ def index():
     return redirect_by_role(current_user)
 
 
+# =============================
+# ■ 認証：ログイン・ログアウト
+# =============================
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """ログイン画面の表示とログイン処理を行う。"""
@@ -665,6 +671,9 @@ def logout():
     return redirect(url_for("login"))
 
 
+# =============================
+# ■ 一般ユーザー：トップ画面
+# =============================
 @app.route("/user/top")
 @login_required
 def user_top():
@@ -805,6 +814,9 @@ def user_usage_stop():
     return redirect(url_for("user_usage_logs"))
 
 
+# =============================
+# ■ 一般ユーザー：記録追加画面
+# =============================
 @app.route("/user/usage/new", methods=["GET", "POST"])
 @login_required
 def user_usage_new():
@@ -934,6 +946,9 @@ def user_usage_new():
     )
 
 
+# =============================
+# ■ 一般ユーザー：使用記録一覧画面
+# =============================
 @app.route("/user/usage/logs", methods=["GET"])
 @login_required
 def user_usage_logs():
@@ -1043,6 +1058,9 @@ def user_usage_logs():
     )
 
 
+# =============================
+# ■ 一般ユーザー：記録編集画面
+# =============================
 @app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET", "POST"])
 @login_required
 def user_usage_edit(usage_log_id):
@@ -1224,6 +1242,9 @@ def user_usage_edit(usage_log_id):
     )
 
 
+# =============================
+# ■ 一般ユーザー：記録削除画面
+# =============================
 @app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET", "POST"])
 @login_required
 def user_usage_delete(usage_log_id):
@@ -1302,6 +1323,9 @@ def user_usage_delete(usage_log_id):
     return render_template("user_usage_delete.html", usage_log=usage_log)
 
 
+# =============================
+# ■ 一般ユーザー：シェア金額一覧画面
+# =============================
 @app.route("/user/share-amounts", methods=["GET"])
 @login_required
 def user_share_amounts():
@@ -1351,6 +1375,9 @@ def user_share_amounts():
     )
 
 
+# =============================
+# ■ 一般ユーザー：シェア金額詳細画面
+# =============================
 @app.route("/user/share-amounts/<finalized_bill_id>", methods=["GET"])
 @login_required
 def user_share_amount_detail(finalized_bill_id):
@@ -1433,6 +1460,9 @@ def user_share_amount_detail(finalized_bill_id):
     )
 
 
+# =============================
+# ■ 管理者：トップ画面
+# =============================
 @app.route("/admin/top", methods=["GET", "POST"])
 @login_required
 @admin_required
@@ -1807,6 +1837,257 @@ def admin_top():
     )
 
 
+# =============================
+# ■ 管理者：シェアメンバー管理
+# =============================
+@app.route("/admin/users", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_users():
+    """管理者用のユーザー一覧表示と新規登録を行う。"""
+    form_data = {
+        "name": "",
+        "login_id": "",
+        "role": "user",
+        "theme_color": "color01",
+    }
+
+    if request.method == "POST":
+        # 登録フォームから入力値を受け取る
+        form_data["name"] = request.form.get("name", "").strip()
+        form_data["login_id"] = request.form.get("login_id", "").strip()
+        password = request.form.get("password", "")
+        form_data["role"] = request.form.get("role")
+        form_data["theme_color"] = request.form.get("theme_color")
+
+        # 必須項目の未入力チェック
+        if (
+            not form_data["name"]
+            or not form_data["login_id"]
+            or not password
+            or not form_data["role"]
+            or not form_data["theme_color"]
+        ):
+            flash("すべての項目を入力してください。", "danger")
+        # 役割は想定した値だけ許可する
+        elif form_data["role"] not in {"user", "admin"}:
+            flash("役割はメンバーまたは管理者を選択してください。", "danger")
+        # 画面の選択肢にない色コードは受け付けない
+        elif form_data["theme_color"] not in THEME_COLOR_MAP:
+            flash("テーマカラーの選択が不正です。", "danger")
+        elif User.query.filter_by(login_id=form_data["login_id"]).first() is not None:
+            flash("そのIDはすでに使用されています。", "danger")
+        else:
+            # パスワードはそのまま保存せず、ハッシュ化して保存する
+            new_user = User(
+                login_id=form_data["login_id"],
+                password_hash=generate_password_hash(password),
+                name=form_data["name"],
+                role=form_data["role"],
+                color=THEME_COLOR_MAP[form_data["theme_color"]],
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            flash("新しいシェアメンバーを登録しました。", "success")
+            return redirect(url_for("admin_users"))
+
+    # 一覧は登録順で表示する
+    users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
+    user_rows = [
+        {
+            "id": user.id,
+            "login_id": user.login_id,
+            "name": user.name,
+            "role": user.role,
+            "color": user.color,
+            "created_at_display": (
+                format_date_for_jst_display(user.created_at)
+                if user.created_at is not None
+                else ""
+            ),
+        }
+        for user in users
+    ]
+    return render_template("admin_users.html", users=user_rows, form_data=form_data)
+
+
+@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_user_delete(user_id):
+    """管理者がユーザーを削除する。"""
+    # 指定IDのユーザーがいない場合は一覧へ戻す
+    target_user = db.session.get(User, user_id)
+    if target_user is None:
+        flash("削除対象のシェアメンバーが見つかりません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    # ログイン中の自分自身は削除させない
+    if target_user.id == current_user.id:
+        flash("ログイン中のユーザー自身は削除できません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    # 機器を持つユーザーは削除させない
+    has_owned_device = (
+        Device.query
+        .filter(Device.user_id == target_user.id)
+        .first()
+        is not None
+    )
+    if has_owned_device:
+        flash("登録済み機器があるメンバーは削除できません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    # すでに確定請求の内訳に使われたユーザーは削除させない
+    has_finalized_bill_member = (
+        FinalizedBillMember.query
+        .filter(FinalizedBillMember.user_id == target_user.id)
+        .first()
+        is not None
+    )
+    if has_finalized_bill_member:
+        flash("確定済み電気料金の内訳データがあるメンバーは削除できません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    # 運転中の記録があるユーザーは削除させない
+    has_running_device = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .filter(
+            Device.user_id == target_user.id,
+            DeviceUsageLog.end_time.is_(None),
+        )
+        .first()
+        is not None
+    )
+    if has_running_device:
+        flash("運転中の機器があるメンバーは削除できません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    db.session.delete(target_user)
+    db.session.commit()
+    flash("シェアメンバーを削除しました。", "success")
+
+    return redirect(url_for("admin_users"))
+
+
+# =============================
+# ■ 管理者：機器管理
+# =============================
+@app.route("/admin/devices", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_devices():
+    """管理者用の機器一覧表示と新規登録を行う。"""
+    # 新規登録フォームの初期表示値
+    form_data = {
+        "name": "",
+        "user_id": "",
+        "power_kw": "",
+        "theme_color": "c1",
+    }
+
+    # 機器の利用者として選べるのは一般ユーザーのみ
+    users = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+
+    if request.method == "POST":
+        # フォーム入力値を取得（エラー時の再表示にも利用）
+        form_data["name"] = request.form.get("name", "").strip()
+        form_data["user_id"] = request.form.get("user_id")
+        form_data["power_kw"] = request.form.get("power_kw", "").strip()
+        form_data["theme_color"] = request.form.get("theme_color")
+
+        # 必須入力の未入力チェック
+        if (
+            not form_data["name"]
+            or not form_data["user_id"]
+            or not form_data["power_kw"]
+            or not form_data["theme_color"]
+        ):
+            flash("すべての項目を入力してください。", "danger")
+        # 画面の選択肢にない色コードは受け付けない
+        elif form_data["theme_color"] not in DEVICE_THEME_COLOR_MAP:
+            flash("テーマカラーの選択が不正です。", "danger")
+        else:
+            # user_id を数値化し、存在チェックに使う
+            try:
+                user_id = int(form_data["user_id"])
+            except ValueError:
+                user_id = None
+
+            target_user = db.session.get(User, user_id) if user_id is not None else None
+            # 存在する一般ユーザーだけを利用者として許可する
+            if target_user is None or target_user.role != "user":
+                flash("使用メンバーの選択が不正です。", "danger")
+            else:
+                # 消費電力は正の数値のみ許可する
+                try:
+                    power_kw = Decimal(form_data["power_kw"])
+                except InvalidOperation:
+                    power_kw = None
+
+                if power_kw is None or power_kw <= 0:
+                    flash("消費電力は0より大きい数値で入力してください。", "danger")
+                else:
+                    # 画面の選択値を実際のカラーコードに変換して保存する
+                    new_device = Device(
+                        name=form_data["name"],
+                        user_id=target_user.id,
+                        power_kw=power_kw,
+                        color=DEVICE_THEME_COLOR_MAP[form_data["theme_color"]],
+                    )
+                    db.session.add(new_device)
+                    db.session.commit()
+                    flash("新しい機器を登録しました。", "success")
+                    return redirect(url_for("admin_devices"))
+
+    # 一覧表示で利用者名も使うため、関連ユーザーを同時に読み込む
+    devices = (
+        Device.query
+        .options(joinedload(Device.user))
+        .order_by(Device.id.asc())
+        .all()
+    )
+    return render_template("admin_devices.html", devices=devices, users=users, form_data=form_data)
+
+
+@app.route("/admin/devices/<int:device_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_device_delete(device_id):
+    """管理者が機器を削除する。"""
+    # 指定IDの機器がない場合は一覧へ戻す
+    target_device = db.session.get(Device, device_id)
+    if target_device is None:
+        flash("削除対象の機器が見つかりません。", "danger")
+        return redirect(url_for("admin_devices"))
+
+    # 1件でも使用記録がある機器は削除させない
+    has_usage_log = (
+        DeviceUsageLog.query
+        .filter(DeviceUsageLog.device_id == target_device.id)
+        .first()
+        is not None
+    )
+    if has_usage_log:
+        flash("使用記録がある機器は削除できません。", "danger")
+        return redirect(url_for("admin_devices"))
+
+    db.session.delete(target_device)
+    db.session.commit()
+    flash("機器を削除しました。", "success")
+
+    return redirect(url_for("admin_devices"))
+
+
+# =============================
+# ■ 管理者：電気料金確定
+# =============================
 @app.route("/admin/bills/confirm", methods=["GET", "POST"])
 @login_required
 @admin_required
@@ -1953,6 +2234,9 @@ def admin_bill_confirm_preview():
     )
 
 
+# =============================
+# ■ 管理者：確定済み電気料金一覧
+# =============================
 @app.route("/admin/bills", methods=["GET"])
 @login_required
 @admin_required
@@ -2076,248 +2360,9 @@ def admin_bills():
     )
 
 
-@app.route("/admin/users", methods=["GET", "POST"])
-@login_required
-@admin_required
-def admin_users():
-    """管理者用のユーザー一覧表示と新規登録を行う。"""
-    form_data = {
-        "name": "",
-        "login_id": "",
-        "role": "user",
-        "theme_color": "color01",
-    }
-
-    if request.method == "POST":
-        # 登録フォームから入力値を受け取る
-        form_data["name"] = request.form.get("name", "").strip()
-        form_data["login_id"] = request.form.get("login_id", "").strip()
-        password = request.form.get("password", "")
-        form_data["role"] = request.form.get("role")
-        form_data["theme_color"] = request.form.get("theme_color")
-
-        # 必須項目の未入力チェック
-        if (
-            not form_data["name"]
-            or not form_data["login_id"]
-            or not password
-            or not form_data["role"]
-            or not form_data["theme_color"]
-        ):
-            flash("すべての項目を入力してください。", "danger")
-        # 役割は想定した値だけ許可する
-        elif form_data["role"] not in {"user", "admin"}:
-            flash("役割はメンバーまたは管理者を選択してください。", "danger")
-        # 画面の選択肢にない色コードは受け付けない
-        elif form_data["theme_color"] not in THEME_COLOR_MAP:
-            flash("テーマカラーの選択が不正です。", "danger")
-        elif User.query.filter_by(login_id=form_data["login_id"]).first() is not None:
-            flash("そのIDはすでに使用されています。", "danger")
-        else:
-            # パスワードはそのまま保存せず、ハッシュ化して保存する
-            new_user = User(
-                login_id=form_data["login_id"],
-                password_hash=generate_password_hash(password),
-                name=form_data["name"],
-                role=form_data["role"],
-                color=THEME_COLOR_MAP[form_data["theme_color"]],
-            )
-            db.session.add(new_user)
-            db.session.commit()
-            flash("新しいシェアメンバーを登録しました。", "success")
-            return redirect(url_for("admin_users"))
-
-    # 一覧は登録順で表示する
-    users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
-    user_rows = [
-        {
-            "id": user.id,
-            "login_id": user.login_id,
-            "name": user.name,
-            "role": user.role,
-            "color": user.color,
-            "created_at_display": (
-                format_date_for_jst_display(user.created_at)
-                if user.created_at is not None
-                else ""
-            ),
-        }
-        for user in users
-    ]
-    return render_template("admin_users.html", users=user_rows, form_data=form_data)
-
-
-@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
-@login_required
-@admin_required
-def admin_user_delete(user_id):
-    """管理者がユーザーを削除する。"""
-    # 指定IDのユーザーがいない場合は一覧へ戻す
-    target_user = db.session.get(User, user_id)
-    if target_user is None:
-        flash("削除対象のシェアメンバーが見つかりません。", "danger")
-        return redirect(url_for("admin_users"))
-
-    # ログイン中の自分自身は削除させない
-    if target_user.id == current_user.id:
-        flash("ログイン中のユーザー自身は削除できません。", "danger")
-        return redirect(url_for("admin_users"))
-
-    # 機器を持つユーザーは削除させない
-    has_owned_device = (
-        Device.query
-        .filter(Device.user_id == target_user.id)
-        .first()
-        is not None
-    )
-    if has_owned_device:
-        flash("登録済み機器があるメンバーは削除できません。", "danger")
-        return redirect(url_for("admin_users"))
-
-    # すでに確定請求の内訳に使われたユーザーは削除させない
-    has_finalized_bill_member = (
-        FinalizedBillMember.query
-        .filter(FinalizedBillMember.user_id == target_user.id)
-        .first()
-        is not None
-    )
-    if has_finalized_bill_member:
-        flash("確定済み電気料金の内訳データがあるメンバーは削除できません。", "danger")
-        return redirect(url_for("admin_users"))
-
-    # 運転中の記録があるユーザーは削除させない
-    has_running_device = (
-        DeviceUsageLog.query
-        .join(Device, DeviceUsageLog.device_id == Device.id)
-        .filter(
-            Device.user_id == target_user.id,
-            DeviceUsageLog.end_time.is_(None),
-        )
-        .first()
-        is not None
-    )
-    if has_running_device:
-        flash("運転中の機器があるメンバーは削除できません。", "danger")
-        return redirect(url_for("admin_users"))
-
-    db.session.delete(target_user)
-    db.session.commit()
-    flash("シェアメンバーを削除しました。", "success")
-
-    return redirect(url_for("admin_users"))
-
-
-@app.route("/admin/devices", methods=["GET", "POST"])
-@login_required
-@admin_required
-def admin_devices():
-    """管理者用の機器一覧表示と新規登録を行う。"""
-    # 新規登録フォームの初期表示値
-    form_data = {
-        "name": "",
-        "user_id": "",
-        "power_kw": "",
-        "theme_color": "c1",
-    }
-
-    # 機器の利用者として選べるのは一般ユーザーのみ
-    users = (
-        User.query
-        .filter(User.role == "user")
-        .order_by(User.created_at.asc(), User.id.asc())
-        .all()
-    )
-
-    if request.method == "POST":
-        # フォーム入力値を取得（エラー時の再表示にも利用）
-        form_data["name"] = request.form.get("name", "").strip()
-        form_data["user_id"] = request.form.get("user_id")
-        form_data["power_kw"] = request.form.get("power_kw", "").strip()
-        form_data["theme_color"] = request.form.get("theme_color")
-
-        # 必須入力の未入力チェック
-        if (
-            not form_data["name"]
-            or not form_data["user_id"]
-            or not form_data["power_kw"]
-            or not form_data["theme_color"]
-        ):
-            flash("すべての項目を入力してください。", "danger")
-        # 画面の選択肢にない色コードは受け付けない
-        elif form_data["theme_color"] not in DEVICE_THEME_COLOR_MAP:
-            flash("テーマカラーの選択が不正です。", "danger")
-        else:
-            # user_id を数値化し、存在チェックに使う
-            try:
-                user_id = int(form_data["user_id"])
-            except ValueError:
-                user_id = None
-
-            target_user = db.session.get(User, user_id) if user_id is not None else None
-            # 存在する一般ユーザーだけを利用者として許可する
-            if target_user is None or target_user.role != "user":
-                flash("使用メンバーの選択が不正です。", "danger")
-            else:
-                # 消費電力は正の数値のみ許可する
-                try:
-                    power_kw = Decimal(form_data["power_kw"])
-                except InvalidOperation:
-                    power_kw = None
-
-                if power_kw is None or power_kw <= 0:
-                    flash("消費電力は0より大きい数値で入力してください。", "danger")
-                else:
-                    # 画面の選択値を実際のカラーコードに変換して保存する
-                    new_device = Device(
-                        name=form_data["name"],
-                        user_id=target_user.id,
-                        power_kw=power_kw,
-                        color=DEVICE_THEME_COLOR_MAP[form_data["theme_color"]],
-                    )
-                    db.session.add(new_device)
-                    db.session.commit()
-                    flash("新しい機器を登録しました。", "success")
-                    return redirect(url_for("admin_devices"))
-
-    # 一覧表示で利用者名も使うため、関連ユーザーを同時に読み込む
-    devices = (
-        Device.query
-        .options(joinedload(Device.user))
-        .order_by(Device.id.asc())
-        .all()
-    )
-    return render_template("admin_devices.html", devices=devices, users=users, form_data=form_data)
-
-
-@app.route("/admin/devices/<int:device_id>/delete", methods=["POST"])
-@login_required
-@admin_required
-def admin_device_delete(device_id):
-    """管理者が機器を削除する。"""
-    # 指定IDの機器がない場合は一覧へ戻す
-    target_device = db.session.get(Device, device_id)
-    if target_device is None:
-        flash("削除対象の機器が見つかりません。", "danger")
-        return redirect(url_for("admin_devices"))
-
-    # 1件でも使用記録がある機器は削除させない
-    has_usage_log = (
-        DeviceUsageLog.query
-        .filter(DeviceUsageLog.device_id == target_device.id)
-        .first()
-        is not None
-    )
-    if has_usage_log:
-        flash("使用記録がある機器は削除できません。", "danger")
-        return redirect(url_for("admin_devices"))
-
-    db.session.delete(target_device)
-    db.session.commit()
-    flash("機器を削除しました。", "success")
-
-    return redirect(url_for("admin_devices"))
-
-
+# =============================
+# ■ 共通：レスポンス後処理
+# =============================
 @app.after_request
 def add_no_cache_headers(response):
     """ログイン済みレスポンスにキャッシュ抑止ヘッダーを付与する。"""
@@ -2326,3 +2371,4 @@ def add_no_cache_headers(response):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
+
