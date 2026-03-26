@@ -1496,3 +1496,29 @@
 - [x] user_top_idle.html
 - [x] admin_top.html
 - [x] admin_users.html
+
+-------------------------
+
+## ■ 日時処理の統一
+実施：2026-03-26
+
+### 【実装確認】
+- [x] `ensure_utc_aware()` で `.replace(tzinfo=timezone.utc)` を使用しない実装に修正した
+- [x] `admin_top` のソート基準で `datetime.min.replace(tzinfo=timezone.utc)` を廃止し、`UTC_MIN_AWARE` を使用するようにした
+- [x] `format_datetime_for_jst_display()` の表示形式を `YYYY/MM/DD HH:MM` に統一した
+- [x] `format_date_for_jst_display()` が `YYYY/MM/DD` 表示になっている
+- [x] `admin_users` の登録日表示をテンプレート内の直接 `strftime()` ではなく、`app.py` 側で整形した `created_at_display` に変更した
+- [x] 手動入力日時は `datetime-local` を日本時間として解釈し、UTCへ変換して保存する既存実装を維持している
+- [x] 自動記録は `datetime.now(timezone.utc)` により UTC aware datetime で生成している
+- [x] UIレイアウト、文言、DBスキーマ、ルート構造は変更していない
+
+---
+
+### 【手動テスト】
+- [x] 使用記録一覧画面で、開始日時が `YYYY/MM/DD HH:MM` 形式で表示される
+- [x] 使用記録削除確認画面で、日時が `YYYY/MM/DD HH:MM` 形式で表示される
+- [x] 使用記録の新規追加で日時を入力し、保存後の一覧表示で入力感覚どおりの日本時間で表示される
+- [x] 使用記録の編集で日時を更新し、保存後の一覧表示で更新内容が正しく反映される
+- [x] シェアメンバー管理画面で、登録日が従来どおり表示される
+- [x] 管理者トップ画面で未確定記録一覧が正常に表示され、並び順が崩れていない
+
