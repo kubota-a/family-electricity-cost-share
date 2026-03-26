@@ -16,16 +16,16 @@
             --hover-row-color: #f1f7fc;
 
             /* HOME画面の各人カードと同じ色 */
-            --color-hanako: #fff0f3;
-            --color-taro: #f0f4ff;
-            --color-ichiro: #f1fcf0;
-            --color-ryoko: #fff9f0;
-            --color-naoki: #f2f2f2;
-            --color-megumi: #fdf2ff;
-            --color-kenta: #f2fbff;
-            --color-misaki: #fffcf2;
-            --color-shuhei: #f2fff9;
-            --color-ai: #fff5f2;
+            --color01: #fff0f3;
+            --color02: #f0f4ff;
+            --color03: #f1fcf0;
+            --color04: #fff9f0;
+            --color05: #f2f2f2;
+            --color06: #fdf2ff;
+            --color07: #f2fbff;
+            --color08: #fffcf2;
+            --color09: #f2fff9;
+            --color10: #fff5f2;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -347,43 +347,43 @@
                 <div class="color-select-group">
                     <label>テーマカラー選択</label>
                     <div class="color-options">
-                        <label class="color-dot" style="background-color: var(--color-hanako);">
+                        <label class="color-dot" style="background-color: var(--color01);">
                             <input type="radio" name="theme_color" value="color01" {% if form_data.theme_color == "color01" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-taro);">
+                        <label class="color-dot" style="background-color: var(--color02);">
                             <input type="radio" name="theme_color" value="color02" {% if form_data.theme_color == "color02" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-ichiro);">
+                        <label class="color-dot" style="background-color: var(--color03);">
                             <input type="radio" name="theme_color" value="color03" {% if form_data.theme_color == "color03" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-ryoko);">
+                        <label class="color-dot" style="background-color: var(--color04);">
                             <input type="radio" name="theme_color" value="color04" {% if form_data.theme_color == "color04" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-naoki);">
+                        <label class="color-dot" style="background-color: var(--color05);">
                             <input type="radio" name="theme_color" value="color05" {% if form_data.theme_color == "color05" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-megumi);">
+                        <label class="color-dot" style="background-color: var(--color06);">
                             <input type="radio" name="theme_color" value="color06" {% if form_data.theme_color == "color06" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-kenta);">
+                        <label class="color-dot" style="background-color: var(--color07);">
                             <input type="radio" name="theme_color" value="color07" {% if form_data.theme_color == "color07" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-misaki);">
+                        <label class="color-dot" style="background-color: var(--color08);">
                             <input type="radio" name="theme_color" value="color08" {% if form_data.theme_color == "color08" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-shuhei);">
+                        <label class="color-dot" style="background-color: var(--color09);">
                             <input type="radio" name="theme_color" value="color09" {% if form_data.theme_color == "color09" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-ai);">
+                        <label class="color-dot" style="background-color: var(--color10);">
                             <input type="radio" name="theme_color" value="color10" {% if form_data.theme_color == "color10" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
@@ -410,7 +410,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {# ユーザー一覧をモックのテーブル行へ埋め込む #}
+                    {# ユーザー一覧をテーブル行として表示する #}
                     {% if users %}
                         {% for user in users %}
                         <tr>
