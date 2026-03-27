@@ -1031,6 +1031,7 @@ def user_usage_logs():
             {
                 "id": usage_log.id,
                 "device_name": usage_log.device.name,
+                "device_color": usage_log.device.color,
                 "start_time_display": format_datetime_for_jst_display(usage_log.start_time),
                 "end_time_display": (
                     format_datetime_for_jst_display(usage_log.end_time)

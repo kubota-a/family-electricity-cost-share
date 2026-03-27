@@ -115,13 +115,23 @@
 
         .summary-card {
             background: var(--card-bg);
-            border: 2px solid #ddd;
-            border-radius: 15px;
+            border: none;
+            border-radius: 25px;
             padding: 15px;
             margin-bottom: 10px;
+            box-shadow: var(--shadow);
         }
-        .summary-title { font-size: clamp(0.85rem, 3.5vw, 1.125rem); margin-bottom: 5px; }
-        .summary-amount { font-size: clamp(1.2rem, 5vw, 1.5625rem); font-weight: bold; }
+        .summary-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            color: rgba(74, 74, 74, 1);
+        }
+        .summary-amount {
+            font-size: clamp(1.2rem, 5vw, 1.5625rem);
+            font-weight: bold;
+            color: rgba(122, 58, 72, 1);
+        }
 
         .note { font-size: 0.7rem; color: #888; line-height: 1.4; margin-bottom: 10px; }
 
@@ -139,7 +149,9 @@
         }
 
         .instruction {
-            font-size: clamp(0.9rem, 3.8vw, 1.0625rem);
+            font-size: clamp(0.9rem, 3.8vw, 1.125rem);
+            font-weight: 700;
+            color: rgba(122, 58, 72, 1);
             line-height: 1.5;
             margin-bottom: 15px;
             display: flex;
@@ -147,7 +159,14 @@
             justify-content: center;
             gap: 5px;
         }
-        .instruction i { color: var(--check-blue); font-size: 1.4rem; }
+        .instruction-dot {
+            width: 1.05rem;
+            height: 1.05rem;
+            border-radius: 50%;
+            background-color: #d3d3d3;
+            display: inline-block;
+            flex-shrink: 0;
+        }
 
         .filter-section {
             padding: 0 20px 10px;
@@ -238,8 +257,17 @@
 
         .check-icon {
             margin-left: 15px;
-            color: var(--check-blue);
-            font-size: 2.2rem;
+            width: 2.2rem;
+            height: 2.2rem;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.15s ease, filter 0.15s ease;
+        }
+        .check-icon:hover {
+            transform: scale(1.05);
+            filter: brightness(0.96);
         }
 
         /* 編集削除選択モーダル（Step 1: テンプレート化のみ） */
@@ -394,10 +422,10 @@
                 {% if unfinalized_start_display == "初回利用記録" %}
                 初回利用記録<br>機器使用料(目安)
                 {% else %}
-                {{ unfinalized_start_display }}以降の<br>機器使用料(目安)
+                {{ unfinalized_start_display }}以降の機器使用料
                 {% endif %}
             </div>
-            <div class="summary-amount">合計{{ summary_total_yen }}円</div>
+            <div class="summary-amount">合計{{ summary_total_yen }}円（※目安）</div>
         </div>
         <p class="note">※使用料は仮単価で算出した目安です。<br>請求額確定後に再計算されます。</p>
 
@@ -413,7 +441,7 @@
 
         <div class="instruction">
             操作したい記録の<br>
-            <i class="fas fa-check-circle"></i> を押してください
+            <span class="instruction-dot" aria-hidden="true"></span> を押してください
         </div>
     </div>
 
@@ -451,7 +479,7 @@
                     {% endif %}
                 </div>
             </div>
-            <i class="fas fa-check-circle check-icon" data-modal-id="usageActionModal-{{ usage_log.id }}"></i>
+            <i class="check-icon" style="background-color: {{ usage_log.device_color or '#d3d3d3' }};" data-modal-id="usageActionModal-{{ usage_log.id }}"></i>
         </div>
         {% endfor %}
         {% else %}

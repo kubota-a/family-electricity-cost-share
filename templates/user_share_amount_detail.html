@@ -122,7 +122,7 @@
 
         .total-amount-card {
             background: var(--card-bg);
-            border: 2px solid #ddd;
+            border: none;
             border-radius: 25px;
             padding: 20px 20px;
             margin-bottom: 22px;
@@ -181,7 +181,7 @@
         }
 
         .breakdown-row:first-child {
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid rgba(238, 238, 238, 1);
         }
 
         .item-label {
@@ -245,7 +245,7 @@
             <span class="total-electricity">お家全体の電気代　{{ detail.total_electricity_display }}</span>
         </div>
 
-        <div class="total-amount-card" style="background-color: {{ current_user.color }};">
+        <div class="total-amount-card">
             <span class="total-label">{{ current_user.name }}さんのシェア金額</span>
             <span class="total-value">{{ detail.share_amount_display }}</span>
         </div>

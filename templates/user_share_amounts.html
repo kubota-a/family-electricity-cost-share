@@ -99,34 +99,9 @@
             padding: 20px 20px 0;
         }
 
-        .info-card {
-            background: var(--card-bg);
-            border: none;
-            border-radius: 0;
-            padding: 15px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow-light);
-        }
-
-        .info-card i {
-            color: #ffd700;
-            font-size: 1.8rem;
-            flex-shrink: 0;
-        }
-
-        .info-text {
-            font-size: clamp(0.8rem, 3.5vw, 0.9rem);
-            color: var(--text-color);
-            line-height: 1.5;
-            text-align: left;
-        }
-
         .sub-instruction {
             text-align: center;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             color: #666;
             margin-bottom: 15px;
@@ -145,7 +120,7 @@
 
         .latest-card {
             background: var(--card-bg);
-            border: 2px solid #ddd;
+            border: none;
             border-radius: 25px;
             padding: 30px 20px;
             margin: 0 20px 12px;
@@ -166,7 +141,7 @@
         }
 
         .latest-card .card-amount {
-            font-size: 23px;
+            font-size: 25px;
             color: rgba(122, 58, 72, 1);
             letter-spacing: 0.5px;
             font-weight: 700;
@@ -205,18 +180,33 @@
             line-height: 1;
             flex-shrink: 0;
         }
+        .history-dot {
+            margin-left: 15px;
+            width: 2.2rem;
+            height: 2.2rem;
+            border-radius: 50%;
+            background-color: #C47A8A;
+            display: inline-block;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.15s ease, filter 0.15s ease;
+        }
+        .history-dot:hover {
+            transform: scale(1.05);
+            filter: brightness(0.96);
+        }
 
         .card-date {
             font-size: 20px;
             font-weight: bold;
             margin-bottom: 6px;
             display: block;
-            color: var(--text-color);
+            color: rgba(74, 74, 74, 1);
         }
         .card-amount {
             width: 141px;
-            font-size: 17px;
-            font-weight: 600;
+            font-size: 19px;
+            font-weight: 700;
             color: #777;
         }
 
@@ -268,16 +258,8 @@
         <div class="header-title">シェア金額一覧</div>
     </header>
 
+    {% if has_records %}
     <div class="intro-section">
-        <div class="info-card">
-            <i class="fas fa-lightbulb"></i>
-            <div class="info-text">
-                あなたの機器使用記録をふまえた、<br>
-                確定済み電気料金のシェア金額です。
-            </div>
-        </div>
-
-        {% if has_records %}
         <p class="sub-instruction">詳細が見たい履歴を選んでください</p>
 
         <div class="latest-label">
@@ -286,13 +268,12 @@
         <a
             class="latest-card latest-card-link"
             href="{{ url_for('user_share_amount_detail', finalized_bill_id=latest_record.bill_id) }}"
-            style="background-color: {{ current_user.color }};"
         >
             <span class="card-date">{{ latest_record.period_range_display }}<br>利用分</span>
             <span class="card-amount">シェア金額： {{ latest_record.share_amount_display }}</span>
         </a>
-        {% endif %}
     </div>
+    {% endif %}
 
     {% if has_records %}
     <main class="history-list">
@@ -307,7 +288,7 @@
                 href="{{ url_for('user_share_amount_detail', finalized_bill_id=history_record.bill_id) }}"
                 aria-label="{{ history_record.period_display }} の詳細を見る"
             >
-                <i class="fas fa-check-circle"></i>
+                <span class="history-dot" aria-hidden="true"></span>
             </a>
         </div>
         {% endfor %}

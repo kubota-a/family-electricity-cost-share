@@ -87,16 +87,17 @@
 
         main {
             flex-grow: 1;
-            padding: 25px 25px;
+            padding: 18px 25px 28px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             gap: 20px;
         }
 
         .new-log-form {
             width: 100%;
+            margin-top: 4mm;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -186,7 +187,8 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            margin: 5px 0;
+            margin-top: calc(5px - 5mm);
+            margin-bottom: 5px;
         }
 
         .confirm-icon {
@@ -251,7 +253,7 @@
         <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
             <i class="fas fa-home"></i>
         </a>
-        <div class="header-title">忘れた分を追加する</div>
+        <div class="header-title">忘れた分を追加</div>
     </header>
 
     <main>
