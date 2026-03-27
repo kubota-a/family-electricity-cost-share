@@ -1,4 +1,4 @@
-﻿from flask import Flask, flash, redirect, render_template, request, url_for, jsonify
+from flask import Flask, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -1354,6 +1354,10 @@ def user_share_amounts():
         bill_cards.append(
             {
                 "bill_id": finalized_bill.id,
+                "period_range_display": (
+                    f"{format_date_for_jst_display(finalized_bill.period_start)}〜"
+                    f"{format_date_for_jst_display(finalized_bill.period_end)}"
+                ),
                 "period_display": (
                     f"{format_date_for_jst_display(finalized_bill.period_start)}〜"
                     f"{format_date_for_jst_display(finalized_bill.period_end)} 利用分"

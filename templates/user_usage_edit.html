@@ -25,7 +25,7 @@
         }
 
         body {
-            background-color: #f0f0f0;
+            background-color: rgba(223, 221, 221, 1);
             display: flex;
             justify-content: center;
             align-items: flex-start;
@@ -67,6 +67,9 @@
             align-items: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 20;
         }
         .header-logo i { color: #e8a0ad; font-size: 1.4rem; }
         .header-logo {
@@ -78,8 +81,8 @@
             left: 50%;
             transform: translateX(-50%);
             font-weight: bold;
-            color: var(--accent-pink-dark);
-            font-size: clamp(0.9rem, 4vw, 1.1rem);
+            color: rgba(196, 122, 138, 1);
+            font-size: 21px;
         }
 
         main {
@@ -198,24 +201,28 @@
             width: 100%;
             max-width: 240px;
             padding: 14px;
-            border-radius: 12px;
-            border: 3px solid #666;
-            background: #fff;
-            color: var(--text-color);
-            font-size: clamp(1.1rem, 5vw, 1.3rem);
+            border-radius: 40px;
+            border: none;
+            background-color: rgba(245, 183, 177, 1);
+            color: rgba(122, 58, 72, 1);
+            font-size: 25px;
             font-weight: bold;
+            line-height: 1;
             cursor: pointer;
         }
 
         .btn-cancel {
             width: 100%;
-            max-width: 170px;
+            max-width: 150px;
             padding: 10px;
             border-radius: 10px;
-            border: 1px solid #999;
-            background: #f8f8f8;
+            border-color: rgba(0, 0, 0, 0);
+            border-image: none;
+            border-width: 0px;
+            border-style: none;
+            background: rgba(219, 219, 219, 1);
             color: #666;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
             text-decoration: none;
