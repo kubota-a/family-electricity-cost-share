@@ -16,16 +16,16 @@
             --hover-row-color: #f1f7fc;
 
             /* HOME画面の各人カードと同じ色 */
-            --color-hanako: #fff0f3;
-            --color-taro: #f0f4ff;
-            --color-ichiro: #f1fcf0;
-            --color-ryoko: #fff9f0;
-            --color-naoki: #f2f2f2;
-            --color-megumi: #fdf2ff;
-            --color-kenta: #f2fbff;
-            --color-misaki: #fffcf2;
-            --color-shuhei: #f2fff9;
-            --color-ai: #fff5f2;
+            --color01: #fff0f3;
+            --color02: #f0f4ff;
+            --color03: #f1fcf0;
+            --color04: #fff9f0;
+            --color05: #f2f2f2;
+            --color06: #fdf2ff;
+            --color07: #f2fbff;
+            --color08: #fffcf2;
+            --color09: #f2fff9;
+            --color10: #fff5f2;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,6 +44,11 @@
 
         /* --- メインコンテンツ --- */
         .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; max-width: 1200px; }
+        .page-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; }
+        .flash-message { padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85rem; text-align: center; border: 1px solid transparent; }
+        .flash-message.success { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
+        .flash-message.danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
+        .flash-message.notice { background: #f5f5f5; color: #555; border-color: #ddd; }
 
         /* --- 新規登録フォーム --- */
         .card { background: #fff; padding: 15px 25px 25px 25px; border-radius: 24px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 30px; }
@@ -68,7 +73,6 @@
         .role-options label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: #666; font-weight: 500; }
 
         .form-footer { display: flex; justify-content: flex-end; align-items: center; gap: 20px; }
-        .inline-flash { color: #2e7d32; font-size: 0.9rem; font-weight: 500; }
         .btn-primary { background: var(--primary-color); color: #fff; border: none; padding: 10px 40px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         .btn-primary:hover { opacity: 0.8; }
 
@@ -91,6 +95,7 @@
         .btn-delete-row { background: none; border: none; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; }
         .btn-delete-row:hover { color: #d32f2f; }
         .empty-row { height: 51px; } /* TDのpadding等に合わせた高さ */
+        .empty-state-row { text-align: center; color: #666; font-weight: bold; }
 
         /* --- 削除確認モーダル --- */
         .modal-overlay {
@@ -225,13 +230,18 @@
         }
 
         .btn-cancel {
-          background: #f0f0f0;
+          background: rgba(219, 219, 219, 1);
           color: #666;
         }
 
         .btn-delete {
-          background: #d68080;
-          color: white;
+          background-color: rgba(245, 183, 177, 1);
+          color: rgba(122, 58, 72, 1);
+          padding: 14px;
+          border: none;
+          border-radius: 40px;
+          font-size: 25px;
+          line-height: 1;
         }
 
         .modal-actions form {
@@ -282,8 +292,8 @@
             <a href="{{ url_for('admin_top') }}" class="nav-item">HOME</a>
             <a href="{{ url_for('admin_users') }}" class="nav-item active">シェアメンバー</a>
             <a href="{{ url_for('admin_devices') }}" class="nav-item">機器</a>
-            <a href="#" class="nav-item">電気料金の確定</a>
-            <a href="#" class="nav-item">確定済の電気料金</a>
+            <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item">電気料金の確定</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済の電気料金</a>
         </nav>
         <form action="{{ url_for('logout') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -294,6 +304,16 @@
     </aside>
 
     <main class="main-content">
+        <h2 class="page-title">&#12471;&#12455;&#12450;&#12513;&#12531;&#12496;&#12540;&#31649;&#29702;</h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% set category, message = messages[-1] %}
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
+        {% endif %}
+        {% endwith %}
+
         <div class="card">
             <div class="form-header">新規登録</div>
 
@@ -332,43 +352,43 @@
                 <div class="color-select-group">
                     <label>テーマカラー選択</label>
                     <div class="color-options">
-                        <label class="color-dot" style="background-color: var(--color-hanako);">
+                        <label class="color-dot" style="background-color: var(--color01);">
                             <input type="radio" name="theme_color" value="color01" {% if form_data.theme_color == "color01" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-taro);">
+                        <label class="color-dot" style="background-color: var(--color02);">
                             <input type="radio" name="theme_color" value="color02" {% if form_data.theme_color == "color02" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-ichiro);">
+                        <label class="color-dot" style="background-color: var(--color03);">
                             <input type="radio" name="theme_color" value="color03" {% if form_data.theme_color == "color03" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-ryoko);">
+                        <label class="color-dot" style="background-color: var(--color04);">
                             <input type="radio" name="theme_color" value="color04" {% if form_data.theme_color == "color04" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-naoki);">
+                        <label class="color-dot" style="background-color: var(--color05);">
                             <input type="radio" name="theme_color" value="color05" {% if form_data.theme_color == "color05" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-megumi);">
+                        <label class="color-dot" style="background-color: var(--color06);">
                             <input type="radio" name="theme_color" value="color06" {% if form_data.theme_color == "color06" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-kenta);">
+                        <label class="color-dot" style="background-color: var(--color07);">
                             <input type="radio" name="theme_color" value="color07" {% if form_data.theme_color == "color07" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-misaki);">
+                        <label class="color-dot" style="background-color: var(--color08);">
                             <input type="radio" name="theme_color" value="color08" {% if form_data.theme_color == "color08" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-shuhei);">
+                        <label class="color-dot" style="background-color: var(--color09);">
                             <input type="radio" name="theme_color" value="color09" {% if form_data.theme_color == "color09" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
-                        <label class="color-dot" style="background-color: var(--color-ai);">
+                        <label class="color-dot" style="background-color: var(--color10);">
                             <input type="radio" name="theme_color" value="color10" {% if form_data.theme_color == "color10" %}checked{% endif %}>
                             <span class="check-mark"><i class="fas fa-check"></i></span>
                         </label>
@@ -376,14 +396,6 @@
                 </div>
 
                 <div class="form-footer">
-                    <div class="inline-flash">
-                        {% set messages = get_flashed_messages() %}
-                        {% if messages %}
-                            <i class="fas fa-check-circle"></i> {{ messages[0] }}
-                        {% else %}
-                            <i class="fas fa-check-circle"></i> ここに各flashメッセージを表示
-                        {% endif %}
-                    </div>
                     <button type="submit" class="btn-primary">登録する</button>
                 </div>
             </form>
@@ -403,33 +415,34 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {# ユーザー一覧をモックのテーブル行へ埋め込む #}
-                    {% for user in users %}
+                    {# ユーザー一覧をテーブル行として表示する #}
+                    {% if users %}
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.login_id }}</td>
+                            <td>{{ user.name }}</td>
+                            <td>{{ "管理者" if user.role == "admin" else "メンバー" }}</td>
+                            <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ user.color }};"></span></td>
+                            <td>{{ user.created_at_display }}</td>
+                            <td>
+                                <button
+                                    type="button"
+                                    class="btn-delete-row"
+                                    data-delete-url="{{ url_for('admin_user_delete', user_id=user.id) }}"
+                                    data-user-name="{{ user.name }}"
+                                    data-login-id="{{ user.login_id }}"
+                                    onclick="openDeleteModal(this)"
+                                >
+                                    <i class="fas fa-trash-alt"></i> 削除
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
                     <tr>
-                        <td>{{ user.login_id }}</td>
-                        <td>{{ user.name }}</td>
-                        <td>{{ "管理者" if user.role == "admin" else "メンバー" }}</td>
-                        <td class="theme-color-cell"><span class="theme-color-dot" style="background-color: {{ user.color }};"></span></td>
-                        <td>{{ user.created_at.strftime('%Y/%m/%d') if user.created_at else "" }}</td>
-                        <td>
-                            <button
-                                type="button"
-                                class="btn-delete-row"
-                                data-delete-url="{{ url_for('admin_user_delete', user_id=user.id) }}"
-                                data-user-name="{{ user.name }}"
-                                data-login-id="{{ user.login_id }}"
-                                onclick="openDeleteModal(this)"
-                            >
-                                <i class="fas fa-trash-alt"></i> 削除
-                            </button>
-                        </td>
+                        <td colspan="6" class="empty-state-row">登録されているシェアメンバーがいません</td>
                     </tr>
-                    {% endfor %}
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>

@@ -1472,3 +1472,230 @@
 - [x] 他ユーザーのIDを指定しても一覧に戻る
 - [x] 「シェア金額一覧に戻る」で一覧に戻る
 - [x] 家アイコンでトップに戻る
+
+-------------------------ここから、全体の修正
+
+## ■ 空状態表示の統一
+実施：2026-03-26
+
+### 【実装確認】
+- [x] データ0件時に無言表示になっていた画面に、空状態メッセージを追加した
+- [x] 既存の空状態文言がある画面は、原則そのまま維持する方針で対応した
+- [x] 今回新規追加した空状態文言では、呼称を「シェアメンバー」に統一した
+- [x] 今回新規追加した複数行の説明文では、「、」「。」の後に適切に改行を入れて読みやすさを調整した
+- [x] 空状態でも既存の通常表示（データあり時）の見た目や導線を壊さないよう、変更対象をテンプレート（HTMLの表示ファイル）中心に限定した
+- [x] 0件時に操作不能となる画面では、理由が分かる文言を追加した
+- [x] 0件時に操作不能となる画面では、必要な入力欄やボタンを無効化した
+- [x] app.py（Flaskの画面処理をまとめたファイル）、route（URLごとの処理定義）、DBスキーマ（データベース構造）は変更していない
+- [x] 変更範囲を「0件時の表示」と「一部導線制御」に限定した
+
+### 【対象画面】
+- [x] user_usage_new.html
+- [x] admin_devices.html
+- [x] admin_bill_confirm.html
+- [x] user_top_idle.html
+- [x] admin_top.html
+- [x] admin_users.html
+
+-------------------------
+
+## ■ 日時処理の統一
+実施：2026-03-26
+
+### 【実装確認】
+- [x] `ensure_utc_aware()` で `.replace(tzinfo=timezone.utc)` を使用しない実装に修正した
+- [x] `admin_top` のソート基準で `datetime.min.replace(tzinfo=timezone.utc)` を廃止し、`UTC_MIN_AWARE` を使用するようにした
+- [x] `format_datetime_for_jst_display()` の表示形式を `YYYY/MM/DD HH:MM` に統一した
+- [x] `format_date_for_jst_display()` が `YYYY/MM/DD` 表示になっている
+- [x] `admin_users` の登録日表示をテンプレート内の直接 `strftime()` ではなく、`app.py` 側で整形した `created_at_display` に変更した
+- [x] 手動入力日時は `datetime-local` を日本時間として解釈し、UTCへ変換して保存する既存実装を維持している
+- [x] 自動記録は `datetime.now(timezone.utc)` により UTC aware datetime で生成している
+- [x] UIレイアウト、文言、DBスキーマ、ルート構造は変更していない
+
+---
+
+### 【手動テスト】
+- [x] 使用記録一覧画面で、開始日時が `YYYY/MM/DD HH:MM` 形式で表示される
+- [x] 使用記録削除確認画面で、日時が `YYYY/MM/DD HH:MM` 形式で表示される
+- [x] 使用記録の新規追加で日時を入力し、保存後の一覧表示で入力感覚どおりの日本時間で表示される
+- [x] 使用記録の編集で日時を更新し、保存後の一覧表示で更新内容が正しく反映される
+- [x] シェアメンバー管理画面で、登録日が従来どおり表示される
+- [x] 管理者トップ画面で未確定記録一覧が正常に表示され、並び順が崩れていない
+
+-------------------------
+
+## ■ 論理削除済み運転中レコードの除外
+実施：2026-03-26
+
+### 【実装確認】
+- [x] user_top の運転中判定条件に `deleted_at.is_(None)` が入っている
+- [x] user_usage_start の二重開始防止チェックに `deleted_at.is_(None)` が入っている
+- [x] user_usage_stop の停止対象取得条件に `deleted_at.is_(None)` が入っている
+- [x] user_usage_new / user_usage_edit の停止日時なしチェックでも `deleted_at.is_(None)` が入っている
+- [x] user_usage_logs / user_usage_delete の未削除条件と整合している
+- [x] admin_top の終了済み記録集計にも `deleted_at.is_(None)` を入れて、論理削除済み記録を概算集計から除外する
+
+---
+
+### 【手動テスト】
+- [x] 「忘れた分を追加」で運転中記録を作成できる
+- [x] その記録を使用記録一覧から削除すると、一覧から消える
+- [x] 削除後にHOMEへ戻っても「運転中の機器があるトップ」にならない
+- [x] 削除済みの記録に対して停止処理が走らない
+
+-------------------------
+
+## ■ 管理画面のflash表示統一
+実施：2026-03-26
+
+### 【実装確認】
+- [x] admin_bills.html のflash表示が `success / danger / notice` の3分岐になっている
+- [x] admin_users.html のflash表示が `success / danger / notice` の3分岐になっている
+- [x] admin_devices.html のflash表示が `success / danger / notice` の3分岐になっている
+- [x] admin_top.html のflash表示が `success / danger / notice` の3分岐になっている
+- [x] admin_bill_confirm.html のflash表示が `success / danger / notice` の3分岐になっている
+- [x] `danger` 以外を一律 `success` にする実装が解消されている
+- [x] カテゴリ未指定または想定外カテゴリは `notice` 表示になる
+- [x] 管理画面ごとの既存レイアウトに合わせて、表示位置は維持されている
+- [x] 管理画面の関連 route で、成功・失敗メッセージのカテゴリ付与が整理されている
+
+---
+
+### 【手動テスト】
+- [x] シェアメンバー管理画面で登録成功時、flashが緑系で表示される
+- [x] シェアメンバー管理画面で入力エラー時、flashが赤系で表示される
+- [x] 機器管理画面で登録成功時、flashが緑系で表示される
+- [x] 機器管理画面で入力エラー時、flashが赤系で表示される
+- [x] 管理者トップ画面で仮単価更新成功時、flashが緑系で表示される
+- [x] 管理者トップ画面で仮単価更新エラー時、flashが赤系で表示される
+- [x] 電気料金確定画面で確定成功時、flashが緑系で表示される
+- [x] 電気料金確定画面で入力エラー時、flashが赤系で表示される
+- [x] 確定済み電気料金一覧画面でflashが従来どおり表示される
+
+-------------------------
+
+## ■ flashカテゴリ付与と一般ユーザー画面のflash表示統一
+実施：2026-03-26
+
+### 【実装確認】
+- [x] app.py 全体のカテゴリなし `flash()` を調査し、未指定7件をすべて修正した
+- [x] `redirect_by_role` の `flash()` に `danger` を付与した
+- [x] `login` のログイン失敗メッセージに `danger` を付与した
+- [x] `user_usage_start` のエラーメッセージに `danger` を付与した
+- [x] `user_usage_stop` のエラーメッセージに `danger` を付与した
+- [x] app.py 全体でカテゴリなし `flash()` が残っていないことを確認した
+- [x] `login.html` の flash 表示を `with_categories=True` に変更した
+- [x] `user_top_idle.html` の flash 表示を `with_categories=True` に変更した
+- [x] `user_top_running.html` の flash 表示を `with_categories=True` に変更した
+- [x] `user_usage_new.html` の flash 表示を `success / danger / notice` の安全分岐に変更した
+- [x] `user_usage_logs.html` の flash 表示を `success / danger / notice` の安全分岐に変更した
+- [x] `user_usage_edit.html` の flash 表示を `success / danger / notice` の安全分岐に変更した
+- [x] `user_usage_delete.html` の flash 表示を `success / danger / notice` の安全分岐に変更した
+- [x] 一般ユーザー側画面の既存レイアウト・文言・導線は維持している
+- [x] `user_share_amounts.html` と `user_share_amount_detail.html` は flash 表示なしのため修正不要であることを確認した
+- [x] user_usage_stop の成功時リダイレクト先が user_usage_logs に変更されている
+- [x] 運転停止成功時に success カテゴリ付き flash が追加されている
+- [x] 成功時flashの文言が、「忘れた分を追加する」後の使用記録一覧画面と同じになっている
+- [x] 停止成功時の変更は user_usage_stop の成功時処理のみに限定されている
+- [x] 停止失敗時の既存挙動（danger flash + user_top へ戻す）は維持されている
+---
+
+### 【手動テスト】
+- [x] ログイン失敗時、ログイン画面で flash が赤系で表示される
+- [x] 使用記録の新規追加成功時、使用記録一覧画面で flash が緑系で表示される
+- [x] 使用記録の新規追加入力エラー時、追加画面で flash が赤系で表示される
+- [x] 使用記録の更新成功時、使用記録一覧画面で flash が緑系で表示される
+- [x] 使用記録の更新入力エラー時、編集画面で flash が赤系で表示される
+- [x] 使用記録の削除成功時、使用記録一覧画面で flash が緑系で表示される
+- [x] 一般ユーザー側の各画面で、flash の位置や見た目が大きく崩れていない
+- [x] 運転中の機器があるユーザートップ画面で「運転停止」を実行後、使用記録一覧画面へ遷移する
+- [x] 使用記録一覧画面で成功系flashが緑系で表示される
+- [x] 成功flashの文言が「新しい記録を追加しました」になっている
+- [x] 停止した記録が一覧に反映されている
+
+-------------------------
+
+## ■ データ未設定時のモーダル起動防止
+実施：2026-03-26
+
+### 【実装確認】
+- [x] 運転開始確認モーダルで、`data-device-name` がない場合はモーダルを開かない
+- [x] 運転開始確認モーダルで、値がある場合のみ機器名・色をセットしてモーダルを開く
+- [x] 運転停止確認モーダルで、`running_device_name` が空または空白のみの場合はモーダルを開かない
+- [x] 編集削除選択モーダルで、`data-modal-id` がない場合はモーダルを開かない
+- [x] 編集削除選択モーダルで、対象モーダルが存在しない場合はモーダルを開かない
+- [x] 既存のモーダルデザイン、キャンセル処理、送信処理は維持している
+- [x] 変更範囲は各テンプレートのモーダル起動用JavaScriptに限定されている
+
+---
+
+### 【手動テスト】
+- [x] ユーザートップ（運転していない状態）で機器ボタンを押すと、運転開始確認モーダルが開く
+- [x] 運転開始確認モーダルに、押した機器の名前と色が正しく表示される
+- [x] ユーザートップ（運転中）で「運転を停止」を押すと、運転停止確認モーダルが開く
+- [x] 使用記録一覧でチェックアイコンを押すと、編集削除選択モーダルが開く
+- [x] 各モーダルで「やめる」または枠外クリックにより、従来どおり閉じられる
+- [x] 各モーダルの見た目やレイアウトが崩れていない
+
+-------------------------
+
+## ■ ユーザートップ画面のスマホ表示修正
+実施：2026-03-26
+
+### 【実装確認】
+- [x] user_top_idle.html で、通常表示時の `.phone-container` に PC用の黒枠・角丸・強い影が直書きされていない
+- [x] user_top_running.html で、通常表示時の `.phone-container` に PC用の黒枠・角丸・強い影が直書きされていない
+- [x] 両画面とも、PC用の黒枠・角丸・影は `@media (min-width: 431px)` 内でのみ適用される構成になっている
+- [x] 両画面とも、通常表示時は `max-width: 430px`・`min-height: 100vh` ベースで表示される
+- [x] user_top_idle.html の運転開始フォーム、ログアウトモーダル、各 `url_for(...)` 参照は維持されている
+- [x] user_top_running.html の運転停止フォーム、確認モーダル、各 `url_for(...)` 参照は維持されている
+- [x] 既存の主要文言・画面構成・ボタン役割は維持されている
+
+---
+
+### 【手動テスト】
+- [x] スマホ実機で user_top_idle を開くと、PC用の黒いスマホ枠が表示されない
+- [x] スマホ実機で user_top_running を開くと、PC用の黒いスマホ枠が表示されない
+- [x] スマホ実機で user_top_idle の内容が画面幅に自然に収まり、左右にはみ出さない
+- [x] スマホ実機で user_top_running の内容が画面幅に自然に収まり、左右にはみ出さない
+- [x] PCブラウザで user_top_idle を開くと、従来どおりスマホ風の枠付き表示になる
+- [x] PCブラウザで user_top_running を開くと、従来どおりスマホ風の枠付き表示になる
+- [x] user_top_idle で「忘れた分を追加」「記録をみる」「運転開始」ボタンが押せる
+- [x] user_top_running で「忘れた分を追加」「記録をみる」「運転を停止」ボタンが押せる
+- [x] user_top_idle のログアウトモーダルが開閉できる
+- [x] user_top_running の停止確認モーダルが開閉できる
+
+-------------------------
+
+## ■ ユーザー側モーダルのスマホ表示仕様統一
+実施：2026-03-26
+
+### 【実装確認】
+- [x] ユーザー側でモーダルを使っているテンプレートが user_top_idle.html / user_top_running.html / user_usage_logs.html の3画面で洗い出されている
+- [x] user_usage_logs.html は既に「スマホ時 fixed、PC時 media query で absolute」に対応済みで、今回の基準画面として扱える
+- [x] user_top_idle.html の `.modal-overlay` はスマホ幅で `position: fixed` / `inset: 0` / `padding` / `overflow-y: auto` / `z-index` を持つ構成に修正されている
+- [x] user_top_idle.html の `.modal-content` に `max-height` / `overflow-y: auto` があり、スマホ高さ不足時の見切れ対策が入っている
+- [x] user_top_running.html の `.modal-overlay` もスマホ幅で `position: fixed` ベースに修正されている
+- [x] user_top_running.html のモーダル本体にも `max-height` / `overflow-y: auto` が入り、見切れにくい構成になっている
+- [x] 両画面とも PC幅では `@media (min-width: 431px)` 内で `.modal-overlay` を `position: absolute` に戻し、従来のフレーム内表示を維持する構成になっている
+- [x] HTML構造、主要文言、`url_for(...)`、form の action / method、ボタン役割、JavaScript の基本挙動は変更されていない
+- [x] user_top_idle.html の `.modal-content` 幅が `user_usage_logs.html` 基準の `width: min(90%, 360px)` に揃えられている
+- [x] user_top_running.html の `.modal-content` 幅が `user_usage_logs.html` 基準の `width: min(90%, 360px)` に揃えられている
+- [x] user_top_idle.html / user_top_running.html ともに、「モーダル基本定義 → PC用 media query」の定義順に整理されている
+- [x] user_top_idle.html / user_top_running.html のモーダル背景色指定が `user_usage_logs.html` と同系統の構成に揃えられている
+
+---
+
+### 【手動テスト】
+- [x] スマホ実機で user_top_idle の「運転開始」確認モーダル本体が表示される
+- [x] スマホ実機で user_top_idle の「ログアウト」確認モーダル本体が表示される
+- [x] スマホ実機で user_top_idle の各モーダルが「やめる」ボタンで閉じられる
+- [x] スマホ実機で user_top_idle の各モーダルが背景タップで閉じられる
+- [x] スマホ実機で user_top_running の「運転停止」確認モーダル本体が表示される
+- [x] スマホ実機で user_top_running のモーダルが「やめる」ボタンで閉じられる
+- [x] スマホ実機で user_top_running のモーダルが背景タップで閉じられる
+- [x] スマホ実機で user_top_idle の「開始する」操作が従来どおり動く
+- [x] スマホ実機で user_top_running の「記録を終了する」操作が従来どおり動く
+- [x] PCブラウザで user_top_idle / user_top_running のモーダルが従来どおりスマホ風フレーム内で表示される
+- [x] PCブラウザで uuser_usage_logs のモーダル横幅が不自然に広がらず、使用記録一覧画面と同系統のサイズ感で表示される
+- [x] スマホ実機で user_usage_logs のモーダル横幅が画面からはみ出さない

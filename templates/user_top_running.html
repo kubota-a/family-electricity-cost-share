@@ -24,23 +24,19 @@
         }
 
         body {
-            background-color: #f0f0f0;
+            background-color: rgba(223, 221, 221, 1);
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
         }
 
         .phone-container {
             width: 100%;
             max-width: 430px;
-            height: 90vh;
+            min-height: 100vh;
             background-color: var(--bg-color);
             position: relative;
-            overflow-y: hidden;
-            border-radius: 40px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.2);
-            border: 8px solid #333;
             display: flex;
             flex-direction: column;
         }
@@ -48,14 +44,20 @@
         @media (min-width: 431px) {
             body {
                 padding: 20px;
+                align-items: center;
                 height: 100vh;
                 overflow: hidden;
             }
             .phone-container {
                 width: min(390px, 100%);
+                min-height: auto;
                 height: auto;
                 aspect-ratio: 9 / 19.5;
                 max-height: 850px;
+                overflow: hidden;
+                border-radius: 40px;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+                border: 8px solid #333;
             }
         }
 
@@ -67,6 +69,9 @@
             align-items: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 20;
         }
 
         .header-logo {
@@ -88,7 +93,8 @@
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
-            color: #c47a8a;
+            color: rgba(196, 122, 138, 1);
+            font-size: 21px;
         }
 
         main {
@@ -114,7 +120,16 @@
             color: #666;
             font-weight: bold;
             box-shadow: var(--shadow);
-            font-size: 0.9rem;
+            font-size: 20px;
+        }
+        .flash-message.success {
+            color: #26B562;
+        }
+        .flash-message.danger {
+            color: #d9534f;
+        }
+        .flash-message.notice {
+            color: #666;
         }
 
         .action-grid {
@@ -141,6 +156,15 @@
             line-height: 1.5;
         }
 
+        .action-card > div {
+            font-size: 23px;
+            line-height: 28px;
+        }
+
+        .action-grid > a.action-card > div {
+            color: rgba(122, 58, 72, 1);
+        }
+
         .action-card-icon {
             font-size: 2.5rem;
             margin-bottom: 10px;
@@ -152,20 +176,22 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-around;
-            padding: 20px 0;
+            justify-content: flex-start;
+            gap: 28px;
+            padding: 0;
         }
 
         .status-badge {
             background-color: #ff9999;
             color: #000;
             padding: 40px 60px;
-            border-radius: 80px;
+            border-radius: 20px;
             font-size: 2.2rem;
             font-weight: bold;
             box-shadow: var(--shadow);
             line-height: 1.2;
-            width: 85%;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .status-badge span {
@@ -182,6 +208,7 @@
             font-size: 2.2rem;
             font-weight: bold;
             color: var(--text-color);
+            margin-top: -4.5mm;
             margin-bottom: 8px;
         }
 
@@ -189,41 +216,48 @@
             font-size: 1.6rem;
             font-weight: bold;
             color: #666;
+            margin-top: -2mm;
         }
 
         .btn-stop {
+            margin-top: -1.5mm;
             width: 100%;
-            max-width: 260px;
-            padding: 15px;
-            border-radius: 15px;
-            border: 3px solid #666;
-            background: #fff;
-            color: var(--text-color);
-            font-size: 1.4rem;
+            max-width: 220px;
+            padding: 14px;
+            border-radius: 40px;
+            border: none;
+            background-color: rgba(245, 183, 177, 1);
+            color: rgba(122, 58, 72, 1);
+            font-size: 25px;
             font-weight: bold;
+            line-height: 1;
             cursor: pointer;
             box-shadow: var(--shadow);
         }
 
+        #openStopConfirmModal {
+            min-width: 240px;
+        }
+
         .modal-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
+            padding: 16px;
             background-color: rgba(0, 0, 0, 0.4);
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 100;
+            overflow-y: auto;
+            z-index: 1000;
         }
 
         .modal-overlay.active {
             display: flex;
         }
 
-        #stopConfirmModal .modal-content {
-            width: 85%;
+        .modal-content {
+            width: min(90%, 360px);
+            max-height: calc(100dvh - 32px);
             background: var(--card-bg);
             border-radius: 30px;
             padding: 30px 20px;
@@ -232,6 +266,20 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
+            overflow-y: auto;
+        }
+
+        @media (min-width: 431px) {
+            .modal-overlay {
+                position: absolute;
+                inset: 0;
+                padding: 0;
+                overflow-y: visible;
+                z-index: 100;
+            }
+            .modal-content {
+                max-height: 90%;
+            }
         }
 
         #stopConfirmModal .modal-title {
@@ -245,12 +293,13 @@
             display: inline-block;
             color: #000;
             padding: 15px 40px;
-            border-radius: 40px;
+            border-radius: 20px;
             font-size: 1.8rem;
             font-weight: bold;
             margin: 0 auto;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            width: auto;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .stats-area {
@@ -284,19 +333,20 @@
             flex-direction: column;
             gap: 12px;
             align-items: center;
-            margin-top: 10px;
+            margin-top: calc(10px - 6mm);
         }
 
         #stopConfirmModal .btn-main {
             width: 100%;
-            max-width: 240px;
+            max-width: 220px;
             padding: 14px;
-            border-radius: 12px;
-            border: 3px solid #666;
-            background: #fff;
-            color: var(--text-color);
-            font-size: 1.15rem;
+            border-radius: 40px;
+            border: none;
+            background-color: rgba(245, 183, 177, 1);
+            color: rgba(122, 58, 72, 1);
+            font-size: 25px;
             font-weight: bold;
+            line-height: 1;
             cursor: pointer;
         }
 
@@ -305,8 +355,11 @@
             max-width: 150px;
             padding: 10px;
             border-radius: 10px;
-            border: 1px solid #999;
-            background: #f8f8f8;
+            border-color: rgba(0, 0, 0, 0);
+            border-image: none;
+            border-width: 0px;
+            border-style: none;
+            background: rgba(219, 219, 219, 1);
             color: #666;
             font-size: 1rem;
             font-weight: bold;
@@ -326,9 +379,11 @@
 
     <main>
         <h1>{{ user_name }}さんのマイページ</h1>
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="flash-message">{{ messages[-1] }}</div>
+        {% set category, message = messages[-1] %}
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
         {% endif %}
         {% endwith %}
 
@@ -436,6 +491,11 @@
 
     // 運転停止確認モーダルの開閉制御
     openStopConfirmModalButton.addEventListener("click", function () {
+        const deviceName = "{{ running_device_name }}";
+        if (!deviceName || deviceName.trim() === "") {
+            return;
+        }
+
         stopConfirmModal.classList.add("active");
     });
 

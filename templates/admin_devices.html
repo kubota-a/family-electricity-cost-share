@@ -42,6 +42,11 @@
 
         /* --- メインコンテンツ --- */
         .main-content { margin-left: 240px; flex-grow: 1; padding: 30px; max-width: 1200px; }
+        .page-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; }
+        .flash-message { padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85rem; text-align: center; border: 1px solid transparent; }
+        .flash-message.success { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
+        .flash-message.danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
+        .flash-message.notice { background: #f5f5f5; color: #555; border-color: #ddd; }
 
         /* --- 新規登録フォーム --- */
         .card { background: #fff; padding: 15px 25px 25px 25px; border-radius: 24px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 30px; }
@@ -65,7 +70,6 @@
         .check-mark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 10px; display: none; pointer-events: none; }
 
         .form-footer { display: flex; justify-content: flex-end; align-items: center; gap: 20px; }
-        .inline-flash { color: #2e7d32; font-size: 0.9rem; font-weight: 500; }
         .btn-primary { background: var(--primary-color); color: #fff; border: none; padding: 10px 40px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         .btn-primary:hover { opacity: 0.8; }
 
@@ -87,6 +91,17 @@
         .btn-delete-row { background: none; border: none; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 0.85rem; }
         .btn-delete-row:hover { color: #d32f2f; }
         .empty-row { height: 51px; }
+        .empty-state-inline {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: #666;
+            line-height: 1.5;
+        }
+        .empty-state-row {
+            text-align: center;
+            color: #666;
+            font-weight: bold;
+        }
 
         .modal-overlay {
           position: fixed;
@@ -215,8 +230,16 @@
           transition: opacity 0.2s;
         }
 
-        .btn-cancel { background: #f0f0f0; color: #666; }
-        .btn-delete { background: #d68080; color: white; }
+        .btn-cancel { background: rgba(219, 219, 219, 1); color: #666; }
+        .btn-delete {
+          background-color: rgba(245, 183, 177, 1);
+          color: rgba(122, 58, 72, 1);
+          padding: 14px;
+          border: none;
+          border-radius: 40px;
+          font-size: 25px;
+          line-height: 1;
+        }
 
         .modal-actions button:hover { opacity: 0.85; }
 
@@ -244,8 +267,8 @@
             <a href="{{ url_for('admin_top') }}" class="nav-item">HOME</a>
             <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
             <a href="{{ url_for('admin_devices') }}" class="nav-item active">機器</a>
-            <a href="#" class="nav-item">電気料金の確定</a>
-            <a href="#" class="nav-item">確定済の電気料金</a>
+            <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item">電気料金の確定</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済の電気料金</a>
         </nav>
         <form action="{{ url_for('logout') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -256,6 +279,16 @@
     </aside>
 
     <main class="main-content">
+        <h2 class="page-title">&#27231;&#22120;&#31649;&#29702;</h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% set category, message = messages[-1] %}
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
+        {% endif %}
+        {% endwith %}
+
         <div class="card">
             <div class="form-header">新規登録</div>
 
@@ -269,13 +302,19 @@
                     </div>
                     <div class="form-group">
                         <label>機器を使うメンバー</label>
-                        <select name="user_id">
+                        <select name="user_id" {% if not users %}disabled{% endif %}>
                             <option value="">選択してください</option>
                             {# 使用メンバーは users テーブルの既存ユーザーを選択 #}
                             {% for user in users %}
                             <option value="{{ user.id }}" {% if form_data.user_id == (user.id | string) %}selected{% endif %}>{{ user.name }}</option>
                             {% endfor %}
                         </select>
+                        {% if not users %}
+                        <p class="empty-state-inline">
+                            シェアメンバーが登録されていないため、<br>
+                            機器を登録できません。
+                        </p>
+                        {% endif %}
                     </div>
                     <div class="form-group">
                         <label>消費電力（kW）</label>
@@ -327,15 +366,7 @@
                 </div>
 
                 <div class="form-footer">
-                    <div class="inline-flash">
-                        {% set messages = get_flashed_messages() %}
-                        {% if messages %}
-                            <i class="fas fa-check-circle"></i> {{ messages[0] }}
-                        {% else %}
-                            <i class="fas fa-check-circle"></i> ここに各flashメッセージを表示
-                        {% endif %}
-                    </div>
-                    <button type="submit" class="btn-primary">登録する</button>
+                    <button type="submit" class="btn-primary" {% if not users %}disabled{% endif %}>登録する</button>
                 </div>
             </form>
         </div>
@@ -354,6 +385,7 @@
                 </thead>
                 <tbody>
                     {# 一覧は devices テーブルから表示する #}
+                    {% if devices %}
                     {% for device in devices %}
                     <tr>
                         <td>{{ device.name }}</td>
@@ -374,15 +406,11 @@
                         </td>
                     </tr>
                     {% endfor %}
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
-                    <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td></tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state-row">登録されている機器がありません</td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>

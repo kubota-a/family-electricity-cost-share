@@ -25,7 +25,7 @@
         }
 
         body {
-            background-color: #f0f0f0;
+            background-color: rgba(223, 221, 221, 1);
             display: flex;
             justify-content: center;
             align-items: flex-start;
@@ -67,6 +67,9 @@
             align-items: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 20;
         }
         .header-logo i { color: var(--accent-pink); font-size: 1.4rem; }
         .header-logo {
@@ -78,69 +81,109 @@
             left: 50%;
             transform: translateX(-50%);
             font-weight: bold;
-            color: var(--text-color);
-            font-size: clamp(0.9rem, 4vw, 1.1rem);
+            color: rgba(196, 122, 138, 1);
+            font-size: 21px;
         }
 
         main {
             flex-grow: 1;
-            padding: 40px 25px;
+            padding: 16px 25px 32px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            gap: 40px;
+            justify-content: flex-start;
+            gap: 28px;
         }
 
         .target-record-card {
             background: var(--card-bg);
             width: 100%;
-            padding: 20px;
-            border-radius: 20px;
-            box-shadow: var(--shadow);
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 4px 3px 0 rgba(0, 0, 0, 0.1);
             display: flex;
             align-items: center;
-            border-left: 8px solid #ff9999;
+            gap: 12px;
+            text-align: left;
+        }
+        .record-color-dot {
+            width: 1.54rem;
+            height: 1.54rem;
+            font-size: 17px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
         }
         .flash-message {
             color: var(--flash-green);
             font-weight: bold;
-            font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+            font-size: 20px;
             margin-bottom: 15px;
+        }
+        .flash-message.success {
+            color: #26B562;
         }
         .flash-message.danger {
             color: #d9534f;
         }
+        .flash-message.notice {
+            color: #666;
+        }
 
         .record-info {
             flex-grow: 1;
-            text-align: left;
+            min-width: 0;
         }
 
         .record-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 8px;
         }
 
         .record-name {
-            font-size: clamp(1.2rem, 5vw, 1.4rem);
             font-weight: bold;
+            font-size: 21px;
+            line-height: 1.2;
             color: var(--text-color);
+            min-width: 0;
+            word-break: break-word;
         }
 
         .record-price {
-            font-size: clamp(1.2rem, 5vw, 1.4rem);
             font-weight: bold;
+            font-size: 21px;
             color: var(--text-color);
+            flex-shrink: 0;
         }
 
         .record-time {
-            font-size: clamp(0.85rem, 3.8vw, 0.95rem);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
             color: #666;
-            line-height: 1.6;
+            line-height: 22px;
         }
+        .record-time-main {
+            flex: 1;
+            min-width: 0;
+        }
+        .badge-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border: none;
+            flex-shrink: 0;
+        }
+        .badge-on { background: #ffebee; color: #c62828; }
 
         .confirm-area {
             display: flex;
@@ -171,13 +214,14 @@
         .btn-delete {
             width: 100%;
             max-width: 220px;
-            padding: 12px;
-            border-radius: 12px;
-            border: 3px solid #666;
-            background: #fff;
-            color: var(--text-color);
-            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            padding: 14px;
+            border-radius: 40px;
+            border: none;
+            background-color: rgba(245, 183, 177, 1);
+            color: rgba(122, 58, 72, 1);
+            font-size: 25px;
             font-weight: bold;
+            line-height: 1;
             cursor: pointer;
         }
         .delete-form {
@@ -188,11 +232,14 @@
 
         .btn-cancel {
             width: 100%;
-            max-width: 160px;
+            max-width: 150px;
             padding: 10px;
             border-radius: 10px;
-            border: 1px solid #999;
-            background: #f8f8f8;
+            border-color: rgba(0, 0, 0, 0);
+            border-image: none;
+            border-width: 0px;
+            border-style: none;
+            background: rgba(219, 219, 219, 1);
             color: #666;
             font-size: 1rem;
             font-weight: bold;
@@ -216,26 +263,31 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% set category, message = messages[-1] %}
-        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
         {% else %}
         <div class="flash-message"></div>
         {% endif %}
         {% endwith %}
 
         <div class="target-record-card">
+            <span class="record-color-dot" style="background-color: {{ usage_log.device_color or '#d3d3d3' }};" aria-hidden="true"></span>
             <div class="record-info">
                 <div class="record-header">
                     <span class="record-name">{{ usage_log.device_name }}</span>
-                    {% if usage_log.estimated_cost_yen is not none %}
-                    <span class="record-price">{{ usage_log.estimated_cost_yen }}円（目安）</span>
+                    {% if usage_log.estimated_cost_yen is not none and not usage_log.is_running %}
+                    <span class="record-price">{{ usage_log.estimated_cost_yen }}円</span>
                     {% endif %}
                 </div>
                 <div class="record-time">
-                    ON &nbsp; {{ usage_log.start_time_display }}
-                    {% if usage_log.end_time_display %}
-                    <br>OFF &nbsp; {{ usage_log.end_time_display }}
-                    {% else %}
-                    <br>運転中
+                    <div class="record-time-main">
+                        ON &nbsp; {{ usage_log.start_time_display }}
+                        {% if usage_log.end_time_display %}
+                        <br>OFF &nbsp; {{ usage_log.end_time_display }}
+                        {% endif %}
+                    </div>
+                    {% if usage_log.is_running %}
+                    <span class="badge-status badge-on">運転中</span>
                     {% endif %}
                 </div>
             </div>

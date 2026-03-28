@@ -1,4 +1,4 @@
-﻿from flask import Flask, flash, redirect, render_template, request, url_for, jsonify
+from flask import Flask, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -21,10 +21,10 @@ load_dotenv()
 # Flaskアプリ本体
 app = Flask(__name__)
 
-# セッションやflashで使う秘密鍵
+# セッションの署名に使う鍵
 secret_key = os.environ.get("SECRET_KEY")
 if not secret_key:
-    # Render本番では未設定のまま起動しない（ローカル開発時のみ仮キー許可）
+    # 本番環境では鍵なしで起動させない（ローカルだけ仮キーを許可）
     if os.environ.get("RENDER"):
         raise RuntimeError("SECRET_KEY is not set")
     secret_key = "dev-secret-key-change-me"
@@ -38,7 +38,7 @@ database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     raise RuntimeError("DATABASE_URL is not set")
 
-# 古い接続スキームが来た場合の補正
+# 古いURL形式(postgres://)が来たときの互換対応
 database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
@@ -61,7 +61,7 @@ login_manager.login_view = "login"
 # 未ログインで保護ページへアクセスした際のメッセージを日本語化
 login_manager.login_message = "ログインしてください"
 
-# ログイン失敗時は、入力ミス内容に関係なく同一メッセージを返す
+# ログイン失敗理由を出し分けず、同じ文言を返して情報漏えいを防ぐ
 INVALID_LOGIN_MESSAGE = "ログインIDまたはパスワードが違います"
 
 # ユーザー管理画面の色丸値 -> users.color に保存するカラーコード
@@ -92,7 +92,7 @@ DEVICE_THEME_COLOR_MAP = {
 
 # 手動入力(datetime-local)は日本時間として解釈する
 TOKYO_TIMEZONE = ZoneInfo("Asia/Tokyo")
-WEEKDAY_LABELS_JA = ["月", "火", "水", "木", "金", "土", "日"]
+UTC_MIN_AWARE = datetime(1, 1, 1, tzinfo=timezone.utc)
 
 
 @login_manager.user_loader
@@ -105,22 +105,21 @@ def load_user(user_id):
 
 
 def redirect_by_role(user):
-    """role に応じて遷移先を分岐する。"""
-    # role分岐
+    """ユーザー種別に合わせて遷移先を決める。"""
     if user.role == "admin":
         return redirect(url_for("admin_top"))
     if user.role == "user":
         return redirect(url_for("user_top"))
 
-    flash("ロール設定が不正です。管理者に連絡してください。")
+    flash("ロール設定が不正です。管理者に連絡してください。", "danger")
     return redirect(url_for("login"))
 
 
 def admin_required(view_func):
-    """admin ロールのみ許可する共通デコレーター。"""
+    """管理者だけが使える画面に付ける共通デコレーター。"""
     @wraps(view_func)
     def wrapped_view(*args, **kwargs):
-        # 権限不足時は安全に自分のトップへ戻す
+        # 権限がない場合はエラー画面にせず、ログイン中ユーザーのトップへ戻す
         if current_user.role != "admin":
             return redirect_by_role(current_user)
         return view_func(*args, **kwargs)
@@ -129,29 +128,30 @@ def admin_required(view_func):
 
 
 def parse_datetime_local_as_utc(value):
-    """datetime-local文字列を日本時間として受け取り、UTCのaware datetimeへ変換する。"""
+    """フォームの日時文字列（日本時間）をUTCの日時に変換する。"""
     naive_dt = datetime.fromisoformat(value)
     tokyo_aware_dt = naive_dt.replace(tzinfo=TOKYO_TIMEZONE)
     return tokyo_aware_dt.astimezone(timezone.utc)
 
 
 def ensure_utc_aware(dt_value):
-    """UTC aware datetimeとして扱える形に補正する。"""
+    """タイムゾーン情報つきUTC日時として扱える形にそろえる。"""
+    if dt_value is None:
+        return None
     if dt_value.tzinfo is None:
-        return dt_value.replace(tzinfo=timezone.utc)
+        raise ValueError("naive datetime is not allowed")
     return dt_value.astimezone(timezone.utc)
 
 
 def format_datetime_for_jst_display(dt_value):
-    """UTC日時を日本時間へ変換し、画面表示用文字列に整形する。"""
+    """UTC日時を日本時間に直し、画面表示の形式に整える。"""
     utc_aware_dt = ensure_utc_aware(dt_value)
     tokyo_dt = utc_aware_dt.astimezone(TOKYO_TIMEZONE)
-    weekday_label = WEEKDAY_LABELS_JA[tokyo_dt.weekday()]
-    return tokyo_dt.strftime(f"%Y/%m/%d({weekday_label}) %H:%M")
+    return tokyo_dt.strftime("%Y/%m/%d %H:%M")
 
 
 def format_datetime_for_jst_input(dt_value):
-    """UTC日時をdatetime-local入力用（日本時間）文字列に整形する。"""
+    """UTC日時をフォーム入力用の日本時間文字列に整える。"""
     utc_aware_dt = ensure_utc_aware(dt_value)
     return utc_aware_dt.astimezone(TOKYO_TIMEZONE).strftime("%Y-%m-%dT%H:%M")
 
@@ -316,6 +316,7 @@ def build_bill_preview_cards(user_members, period_start_utc, period_end_utc, uni
             }
         )
 
+    # 端数丸めの影響で合計が請求総額とズレる場合に備えて差分を調整する
     billing_amount_yen = int(billing_amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     total_share_amount = sum(card["share_amount"] for card in cards)
     adjustment = billing_amount_yen - total_share_amount
@@ -433,7 +434,7 @@ def calculate_bill_confirm_preview(
         "save_payload": None,
     }
 
-    # 期間整合性チェック用に、毎回最新の確定済み請求を再確認する
+    # 送信時点でも開始日の基準が変わっていないか、最新データで再確認する
     latest_finalized_bill = (
         FinalizedBill.query
         .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
@@ -522,7 +523,7 @@ def calculate_bill_confirm_preview(
         if period_start_utc is not None and period_end_utc < period_start_utc:
             result["errors"].append("終了日は開始日以降の日付を入力してください")
 
-    # 期間飛ばし禁止（通常時の開始日は常に最新確定日の翌日）
+    # 途中の期間を飛ばして確定できないようにする
     if (
         not result["errors"]
         and not is_initial_confirm
@@ -534,7 +535,7 @@ def calculate_bill_confirm_preview(
     if result["errors"]:
         return result
 
-    # 同一期間の二重確定を禁止する
+    # 同じ期間がすでに確定済みなら登録しない
     duplicate_bill = (
         FinalizedBill.query
         .filter(FinalizedBill.period_start == period_start_utc)
@@ -545,7 +546,7 @@ def calculate_bill_confirm_preview(
         result["errors"].append("同じ利用期間の電気料金はすでに確定済みです")
         return result
 
-    # 対象期間に運転中記録がある場合は確定不可
+    # 対象期間に運転中の記録が残っている間は確定しない
     has_running_log = (
         DeviceUsageLog.query
         .join(Device, DeviceUsageLog.device_id == Device.id)
@@ -562,6 +563,7 @@ def calculate_bill_confirm_preview(
         result["errors"].append("運転中の機器がある期間の電気料金は確定できません")
         return result
 
+    # 単価は「(請求総額 - 基本料金) / 使用量」で計算し、小数第1位で丸める
     unit_price = ((billing_amount - base_fee) / usage_kwh).quantize(
         Decimal("0.1"),
         rounding=ROUND_HALF_UP,
@@ -618,6 +620,9 @@ def calculate_bill_confirm_preview(
     return result
 
 
+# =============================
+# ■ 共通：トップ入口
+# =============================
 @app.route("/")
 def index():
     """アプリのトップ入口。ログイン状態とロールに応じて適切な画面へリダイレクトする。"""
@@ -627,11 +632,14 @@ def index():
     return redirect_by_role(current_user)
 
 
+# =============================
+# ■ 認証：ログイン・ログアウト
+# =============================
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """ログイン画面の表示とログイン処理を行う。"""
     if request.method == "GET":
-        # すでにログイン済みなら role に応じてトップへ戻す
+        # すでにログイン済みなら、再ログインさせずに各トップへ戻す
         if current_user.is_authenticated:
             return redirect_by_role(current_user)
         return render_template("login.html", login_id="")
@@ -639,20 +647,20 @@ def login():
     login_id = request.form.get("login_id", "").strip()
     password = request.form.get("password", "")
 
-    # 空欄チェック
+    # ID/パスワードの未入力を先に弾く
     if not login_id or not password:
-        flash(INVALID_LOGIN_MESSAGE)
+        flash(INVALID_LOGIN_MESSAGE, "danger")
         return render_template("login.html", login_id=login_id)
 
     user = User.query.filter_by(login_id=login_id).first()
 
-    # ユーザー不存在とパスワード不一致を同一メッセージに統一
+    # 存在しないIDかパスワード違いかを画面上で区別しない
     if user is None or not check_password_hash(user.password_hash, password):
-        flash(INVALID_LOGIN_MESSAGE)
+        flash(INVALID_LOGIN_MESSAGE, "danger")
         return render_template("login.html", login_id=login_id)
 
     login_user(user)
-    # ログイン成功後は role に応じたトップへ遷移
+    # ログイン後は権限ごとのトップ画面へ
     return redirect_by_role(user)
 
 
@@ -663,15 +671,18 @@ def logout():
     return redirect(url_for("login"))
 
 
+# =============================
+# ■ 一般ユーザー：トップ画面
+# =============================
 @app.route("/user/top")
 @login_required
 def user_top():
     """ユーザー用トップ画面を表示する。"""
-    # admin が user 画面へ来た場合は、自分のトップへ戻す（flashなし）
+    # 管理者が直接この画面に来た場合は、管理者トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # ログイン中ユーザーの所有機器だけを取得する
+    # 自分の機器だけを表示対象にする
     owned_devices = (
         Device.query
         .filter(Device.user_id == current_user.id)
@@ -679,37 +690,27 @@ def user_top():
         .all()
     )
 
-    # 自分の所有機器に紐づく「運転中(end_timeがNULL)」レコードを確認する
+    # まだ停止時刻が入っていない記録を「運転中」として探す
     running_log = (
         DeviceUsageLog.query
         .join(Device, DeviceUsageLog.device_id == Device.id)
         .filter(
             Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
             DeviceUsageLog.end_time.is_(None),
         )
         .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
         .first()
     )
 
-    # 運転中レコードがあるときは「運転中トップ」を表示する
+    # 運転中の機器がある場合は、運転中用レイアウトを表示する
     if running_log is not None:
-        # 仮単価はアプリ全体設定の先頭1件から取得する（未設定ならNone）
+        # 仮単価は設定テーブルの先頭1件を利用（未設定ならNone）
         app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
         estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
 
-        # DB時刻がタイムゾーンなしで返る環境でも計算が崩れないよう補正する
-        running_start_time = running_log.start_time
-        if running_start_time.tzinfo is None:
-            running_start_time = datetime(
-                running_start_time.year,
-                running_start_time.month,
-                running_start_time.day,
-                running_start_time.hour,
-                running_start_time.minute,
-                running_start_time.second,
-                running_start_time.microsecond,
-                tzinfo=timezone.utc,
-            )
+        # DBの日時はUTCで統一して扱う
+        running_start_time = ensure_utc_aware(running_log.start_time)
 
         return render_template(
             "user_top_running.html",
@@ -721,7 +722,7 @@ def user_top():
             estimated_unit_price=float(estimated_unit_price) if estimated_unit_price is not None else None,
         )
 
-    # 運転中レコードがないときは、所有機器一覧つきの通常トップを表示する
+    # 運転中がなければ通常トップを表示する
     return render_template(
         "user_top_idle.html",
         user_name=current_user.name,
@@ -740,10 +741,10 @@ def user_usage_start():
     try:
         device_id = int(device_id_raw)
     except (TypeError, ValueError):
-        flash("開始対象の機器が不正です。")
+        flash("開始対象の機器が不正です。", "danger")
         return redirect(url_for("user_top"))
 
-    # 他人の機器を開始できないよう、ログイン中ユーザー所有の機器だけ許可する
+    # 他人の機器を開始できないように、所有者を必ず確認する
     target_device = (
         Device.query
         .filter(
@@ -753,24 +754,25 @@ def user_usage_start():
         .first()
     )
     if target_device is None:
-        flash("開始対象の機器が見つかりません。")
+        flash("開始対象の機器が見つかりません。", "danger")
         return redirect(url_for("user_top"))
 
-    # 二重開始防止のため、開始直前にもう一度「自分の運転中」を確認する
+    # 連打や多重送信でも二重開始しないよう、保存直前に再確認する
     running_log = (
         DeviceUsageLog.query
         .join(Device, DeviceUsageLog.device_id == Device.id)
         .filter(
             Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
             DeviceUsageLog.end_time.is_(None),
         )
         .first()
     )
     if running_log is not None:
-        flash("すでに運転中の機器があります。停止してから開始してください。")
+        flash("すでに運転中の機器があります。停止してから開始してください。", "danger")
         return redirect(url_for("user_top"))
 
-    # 運転開始記録を作成する（TIMESTAMP WITH TIME ZONE 前提でUTCを保存）
+    # 開始時刻はUTCで保存する
     new_log = DeviceUsageLog(
         device_id=target_device.id,
         start_time=datetime.now(timezone.utc),
@@ -788,37 +790,42 @@ def user_usage_stop():
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # 停止対象はURL指定せず、サーバー側で「自分の運転中1件」を探す
+    # 停止対象IDを受け取らず、サーバー側で現在の運転中記録を特定する
     running_log = (
         DeviceUsageLog.query
         .join(Device, DeviceUsageLog.device_id == Device.id)
         .filter(
             Device.user_id == current_user.id,
+            DeviceUsageLog.deleted_at.is_(None),
             DeviceUsageLog.end_time.is_(None),
         )
         .order_by(DeviceUsageLog.start_time.desc(), DeviceUsageLog.id.desc())
         .first()
     )
 
-    # 二重停止対策: すでに停止済みならエラーとして通常トップへ戻す
+    # すでに停止済みならエラーにして戻す（多重停止を防ぐ）
     if running_log is None:
-        flash("停止できる運転中の機器が見つかりません。")
+        flash("停止できる運転中の機器が見つかりません。", "danger")
         return redirect(url_for("user_top"))
 
     running_log.end_time = datetime.now(timezone.utc)
     db.session.commit()
-    return redirect(url_for("user_top"))
+    flash("新しい記録を追加しました", "success")
+    return redirect(url_for("user_usage_logs"))
 
 
+# =============================
+# ■ 一般ユーザー：記録追加画面
+# =============================
 @app.route("/user/usage/new", methods=["GET", "POST"])
 @login_required
 def user_usage_new():
     """一般ユーザー用の記録新規追加画面を表示する。"""
-    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    # 一般ユーザー専用画面。管理者は管理者トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # 使用機器の選択肢は、ログイン中ユーザーの所有機器だけを表示する
+    # 選べる機器は自分の所有分だけに絞る
     owned_devices = (
         Device.query
         .filter(Device.user_id == current_user.id)
@@ -826,20 +833,20 @@ def user_usage_new():
         .all()
     )
 
-    # フォーム再表示時の差し戻し用データ
+    # エラー時に入力値を再表示するための保持データ
     form_data = {
         "device_id": "",
         "start_time": "",
         "end_time": "",
     }
 
-    # 記録新規作成フォームの入力値を検証し、問題なければ保存する
+    # 入力値を検証し、通れば新しい使用記録を保存する
     if request.method == "POST":
         form_data["device_id"] = request.form.get("device_id", "")
         form_data["start_time"] = request.form.get("start_time", "")
         form_data["end_time"] = request.form.get("end_time", "")
 
-        # 必須チェック: 使用機器と開始日時は必須
+        # 必須入力の確認（機器・開始日時）
         if not form_data["device_id"]:
             flash("使用機器を選択してください。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
@@ -847,14 +854,14 @@ def user_usage_new():
             flash("運転を開始した日時を入力してください。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
 
-        # 所有権チェックの前にdevice_idを数値化する
+        # 不正なID文字列を除外するため、先に数値へ変換する
         try:
             device_id = int(form_data["device_id"])
         except (TypeError, ValueError):
             flash("使用機器の指定が不正です。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
 
-        # 他ユーザー機器での記録作成を防ぐため、所有機器だけを許可する
+        # 他ユーザーの機器IDを指定されても保存できないようにする
         target_device = (
             Device.query
             .filter(
@@ -867,7 +874,7 @@ def user_usage_new():
             flash("選択した機器が見つかりません。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
 
-        # datetime-local文字列を日時として解釈できるかを確認する
+        # フォームから来た日時文字列をUTC日時へ変換できるか確認する
         try:
             start_time = parse_datetime_local_as_utc(form_data["start_time"])
         except ValueError:
@@ -883,7 +890,7 @@ def user_usage_new():
         else:
             end_time = None
 
-        # 未来日時チェック（開始・停止ともに未来は不可）
+        # 開始・停止ともに未来日時は受け付けない
         now_utc = datetime.now(timezone.utc)
         if start_time > now_utc:
             flash("運転開始日時に未来の日時は指定できません。", "danger")
@@ -892,13 +899,12 @@ def user_usage_new():
             flash("運転停止日時に未来の日時は指定できません。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
 
-        # 停止日時入力時のみ、開始 < 停止 を確認する
+        # 停止時刻がある場合だけ、開始より後かを確認する
         if end_time is not None and start_time >= end_time:
             flash("運転停止日時は運転開始日時より後を指定してください。", "danger")
             return render_template("user_usage_new.html", devices=owned_devices, form_data=form_data)
 
-        # 未終了記録の存在チェック（論理削除済みは除外）
-        # 未終了がある場合は、停止日時なし(end_time=NULL)の追加を禁止する
+        # 停止時刻なしで追加する場合は、すでに運転中記録がないか確認する
         if end_time is None:
             has_running_log = (
                 DeviceUsageLog.query
@@ -924,7 +930,7 @@ def user_usage_new():
         try:
             db.session.add(new_log)
             db.session.commit()
-        except Exception as e:
+        except Exception:
             app.logger.exception("user_usage_new: 記録保存中に例外が発生しました")
             db.session.rollback()
             flash("記録の保存に失敗しました。", "danger")
@@ -933,7 +939,6 @@ def user_usage_new():
         flash("新しい記録を追加しました", "success")
         return redirect(url_for("user_usage_logs"))
 
-    # 使用機器の選択肢は、ログイン中ユーザーの所有機器だけを表示する
     return render_template(
         "user_usage_new.html",
         devices=owned_devices,
@@ -941,15 +946,18 @@ def user_usage_new():
     )
 
 
+# =============================
+# ■ 一般ユーザー：使用記録一覧画面
+# =============================
 @app.route("/user/usage/logs", methods=["GET"])
 @login_required
 def user_usage_logs():
     """一般ユーザー用の記録一覧画面を表示する。"""
-    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    # 一般ユーザー専用画面。管理者は管理者トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # 機器絞り込みの選択肢として、ログイン中ユーザーの所有機器を取得する
+    # 絞り込み候補として自分の機器一覧を取得する
     owned_devices = (
         Device.query
         .filter(Device.user_id == current_user.id)
@@ -958,7 +966,7 @@ def user_usage_logs():
     )
     owned_device_ids = {device.id for device in owned_devices}
 
-    # GETパラメータ device_id が自分の所有機器なら絞り込みに使う
+    # URLパラメータの機器IDは「自分の機器」のときだけ採用する
     selected_device_id = None
     selected_device_id_raw = request.args.get("device_id", "").strip()
     if selected_device_id_raw:
@@ -969,7 +977,7 @@ def user_usage_logs():
         if candidate_device_id in owned_device_ids:
             selected_device_id = candidate_device_id
 
-    # 最新の確定済み期間終了日時を取得し、未確定期間の開始日時を決める
+    # 最後に確定した請求の翌日を、未確定期間の開始日とする
     latest_finalized_bill = (
         FinalizedBill.query
         .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
@@ -990,7 +998,7 @@ def user_usage_logs():
         unfinalized_start_utc = None
         unfinalized_start_display = "初回利用記録"
 
-    # ログイン中ユーザーの所有機器に紐づく、未削除の使用記録だけを取得する
+    # 自分の機器かつ未削除の記録だけを検索対象にする
     usage_logs_query = (
         DeviceUsageLog.query
         .join(Device, DeviceUsageLog.device_id == Device.id)
@@ -1001,7 +1009,7 @@ def user_usage_logs():
         )
     )
 
-    # 確定済み期間がある場合は、未確定期間の開始日時以降だけを表示する
+    # すでに確定済みの期間は一覧に出さない
     if unfinalized_start_utc is not None:
         usage_logs_query = usage_logs_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
     if selected_device_id is not None:
@@ -1013,7 +1021,7 @@ def user_usage_logs():
         .all()
     )
 
-    # 一覧・モーダルで同じ表示値を使えるよう、表示用データを作る
+    # テンプレートで使いやすい表示用データへ整形する
     app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
     estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
 
@@ -1023,6 +1031,8 @@ def user_usage_logs():
             {
                 "id": usage_log.id,
                 "device_name": usage_log.device.name,
+                "device_color": usage_log.device.color,
+                "is_running": usage_log.end_time is None,
                 "start_time_display": format_datetime_for_jst_display(usage_log.start_time),
                 "end_time_display": (
                     format_datetime_for_jst_display(usage_log.end_time)
@@ -1033,7 +1043,7 @@ def user_usage_logs():
             }
         )
 
-    # 一覧表示対象のうち、終了済み記録の概算料金だけを合計する
+    # 停止済みの記録だけ概算料金を合計する
     summary_total_yen = sum(
         usage_log["estimated_cost_yen"]
         for usage_log in usage_logs
@@ -1050,15 +1060,18 @@ def user_usage_logs():
     )
 
 
+# =============================
+# ■ 一般ユーザー：記録編集画面
+# =============================
 @app.route("/user/usage/<int:usage_log_id>/edit", methods=["GET", "POST"])
 @login_required
 def user_usage_edit(usage_log_id):
     """一般ユーザー用の記録編集画面を表示する。"""
-    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    # 一般ユーザー専用画面。管理者は管理者トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # 機器選択肢はログイン中ユーザーの所有機器のみ表示する
+    # 編集時に選べる機器も自分の所有分だけにする
     owned_devices = (
         Device.query
         .filter(Device.user_id == current_user.id)
@@ -1066,7 +1079,7 @@ def user_usage_edit(usage_log_id):
         .all()
     )
 
-    # 最新の確定済み期間終了日時を基準に、未確定期間の開始日時を算出する
+    # 最後に確定した請求の翌日を、編集可能な最古日として使う
     latest_finalized_bill = (
         FinalizedBill.query
         .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
@@ -1084,7 +1097,7 @@ def user_usage_edit(usage_log_id):
     else:
         unfinalized_start_utc = None
 
-    # 編集対象は「自分の機器」「未削除」「未確定期間の開始以降」の記録のみ許可する
+    # 他人の記録や確定済み期間の記録は編集できないようにする
     usage_log_query = (
         DeviceUsageLog.query
         .join(Device, DeviceUsageLog.device_id == Device.id)
@@ -1110,7 +1123,7 @@ def user_usage_edit(usage_log_id):
             usage_log_id=usage_log_id,
         )
 
-    # 編集画面の更新処理（Step 3: バリデーション実装）
+    # 入力値を検証し、問題がなければ使用記録を更新する
     if request.method == "POST":
         form_data = {
             "device_id": request.form.get("device_id", "").strip(),
@@ -1118,7 +1131,7 @@ def user_usage_edit(usage_log_id):
             "end_time": request.form.get("end_time", "").strip(),
         }
 
-        # 必須チェック: 使用機器と開始日時は必須
+        # 必須入力の確認（機器・開始日時）
         if not form_data["device_id"]:
             flash("使用機器を選択してください。", "danger")
             return render_edit_with_form(form_data)
@@ -1132,7 +1145,7 @@ def user_usage_edit(usage_log_id):
             flash("使用機器の指定が不正です。", "danger")
             return render_edit_with_form(form_data)
 
-        # 所有権チェック: 自分の所有機器のみ選択可能
+        # 他人の機器へ付け替えできないよう所有者を確認する
         target_device = (
             Device.query
             .filter(
@@ -1145,7 +1158,7 @@ def user_usage_edit(usage_log_id):
             flash("選択した機器が見つかりません。", "danger")
             return render_edit_with_form(form_data)
 
-        # datetime-local形式チェック（YYYY-MM-DDTHH:MM）
+        # 日時文字列をUTC日時へ変換できるか確認する
         try:
             start_time = parse_datetime_local_as_utc(form_data["start_time"])
         except ValueError:
@@ -1161,12 +1174,12 @@ def user_usage_edit(usage_log_id):
         else:
             end_time = None
 
-        # 開始日時の確定済み期間チェック（未確定期間以降のみ編集可）
+        # 確定済み期間に入る記録は編集させない
         if unfinalized_start_utc is not None and start_time < unfinalized_start_utc:
             flash("確定済み期間の記録は編集できません。", "danger")
             return render_edit_with_form(form_data)
 
-        # 未来日時チェック（開始・停止ともに未来は不可）
+        # 開始・停止ともに未来日時は受け付けない
         now_utc = datetime.now(timezone.utc)
         if start_time > now_utc:
             flash("運転開始日時に未来の日時は指定できません。", "danger")
@@ -1175,12 +1188,12 @@ def user_usage_edit(usage_log_id):
             flash("運転停止日時に未来の日時は指定できません。", "danger")
             return render_edit_with_form(form_data)
 
-        # 停止日時入力時のみ、開始 < 停止 を確認する
+        # 停止時刻がある場合だけ、開始より後かを確認する
         if end_time is not None and start_time >= end_time:
             flash("運転停止日時は運転開始日時より後を指定してください。", "danger")
             return render_edit_with_form(form_data)
 
-        # 未終了記録の重複チェック（自分自身は除外）
+        # 停止時刻なしで更新する場合、他に運転中記録がないか確認する
         if end_time is None:
             has_running_log = (
                 DeviceUsageLog.query
@@ -1204,7 +1217,7 @@ def user_usage_edit(usage_log_id):
 
         try:
             db.session.commit()
-        except Exception as e:
+        except Exception:
             app.logger.exception("user_usage_edit: 記録更新中に例外が発生しました")
             db.session.rollback()
             flash("記録の更新に失敗しました。", "danger")
@@ -1231,15 +1244,18 @@ def user_usage_edit(usage_log_id):
     )
 
 
+# =============================
+# ■ 一般ユーザー：記録削除画面
+# =============================
 @app.route("/user/usage/<int:usage_log_id>/delete", methods=["GET", "POST"])
 @login_required
 def user_usage_delete(usage_log_id):
     """一般ユーザー用の記録削除画面を表示する。"""
-    # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
+    # 一般ユーザー専用画面。管理者は管理者トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
 
-    # 最新の確定済み期間終了日時を基準に、未確定期間の開始日時を算出する
+    # 最後に確定した請求の翌日を、削除可能な最古日として使う
     latest_finalized_bill = (
         FinalizedBill.query
         .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
@@ -1257,7 +1273,7 @@ def user_usage_delete(usage_log_id):
     else:
         unfinalized_start_utc = None
 
-    # GET/POSTで同じ条件を使うため、対象レコード取得処理を共通化する
+    # 画面表示(GET)と削除実行(POST)で同じ検索条件を使い回す
     def find_target_usage_log():
         usage_log_query = (
             DeviceUsageLog.query
@@ -1273,17 +1289,17 @@ def user_usage_delete(usage_log_id):
             usage_log_query = usage_log_query.filter(DeviceUsageLog.start_time >= unfinalized_start_utc)
         return usage_log_query.first()
 
-    # 削除対象は「自分の機器」「未削除」「未確定期間の開始以降」の記録のみ許可する
+    # 他人の記録や確定済み期間の記録は削除できないようにする
     target_usage_log = find_target_usage_log()
     if target_usage_log is None:
         return redirect(url_for("user_usage_logs"))
 
     if request.method == "POST":
-        # 物理削除はせず、削除日時を保存して論理削除する
+        # 物理削除はせず、削除日時を入れて論理削除にする
         target_usage_log.deleted_at = datetime.now(timezone.utc)
         try:
             db.session.commit()
-        except Exception as e:
+        except Exception:
             app.logger.exception("user_usage_delete: 記録削除中に例外が発生しました")
             db.session.rollback()
             flash("記録の削除に失敗しました。", "danger")
@@ -1291,12 +1307,14 @@ def user_usage_delete(usage_log_id):
             flash("記録を削除しました", "success")
             return redirect(url_for("user_usage_logs"))
 
-    # 一覧画面のモーダルと表示値をそろえるため、削除画面用の表示データを作る
+    # 一覧と表示がずれないよう、削除確認画面でも同じ形式に整える
     app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
     estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
     usage_log = {
         "id": target_usage_log.id,
         "device_name": target_usage_log.device.name,
+        "device_color": target_usage_log.device.color,
+        "is_running": target_usage_log.end_time is None,
         "start_time_display": format_datetime_for_jst_display(target_usage_log.start_time),
         "end_time_display": (
             format_datetime_for_jst_display(target_usage_log.end_time)
@@ -1309,10 +1327,13 @@ def user_usage_delete(usage_log_id):
     return render_template("user_usage_delete.html", usage_log=usage_log)
 
 
+# =============================
+# ■ 一般ユーザー：シェア金額一覧画面
+# =============================
 @app.route("/user/share-amounts", methods=["GET"])
 @login_required
 def user_share_amounts():
-    """一般ユーザー用のシェア金額一覧画面（Step 1 の最小実装）を表示する。"""
+    """一般ユーザー用のシェア金額一覧画面を表示する。"""
     # 一般ユーザー限定画面: admin が来た場合はロール別トップへ戻す
     if current_user.role != "user":
         return redirect_by_role(current_user)
@@ -1337,6 +1358,10 @@ def user_share_amounts():
         bill_cards.append(
             {
                 "bill_id": finalized_bill.id,
+                "period_range_display": (
+                    f"{format_date_for_jst_display(finalized_bill.period_start)}〜"
+                    f"{format_date_for_jst_display(finalized_bill.period_end)}"
+                ),
                 "period_display": (
                     f"{format_date_for_jst_display(finalized_bill.period_start)}〜"
                     f"{format_date_for_jst_display(finalized_bill.period_end)} 利用分"
@@ -1358,6 +1383,9 @@ def user_share_amounts():
     )
 
 
+# =============================
+# ■ 一般ユーザー：シェア金額詳細画面
+# =============================
 @app.route("/user/share-amounts/<finalized_bill_id>", methods=["GET"])
 @login_required
 def user_share_amount_detail(finalized_bill_id):
@@ -1387,7 +1415,7 @@ def user_share_amount_detail(finalized_bill_id):
 
     target_bill = target_member.finalized_bill
 
-    # Step 3: 一覧から受け取った対象IDの最小表示データを作る
+    # 一覧から受け取った対象IDをもとに、詳細表示用データを作る
     period_start_display = (
         format_date_for_jst_display(target_bill.period_start)
         if target_bill.period_start is not None
@@ -1440,6 +1468,9 @@ def user_share_amount_detail(finalized_bill_id):
     )
 
 
+# =============================
+# ■ 管理者：トップ画面
+# =============================
 @app.route("/admin/top", methods=["GET", "POST"])
 @login_required
 @admin_required
@@ -1448,7 +1479,7 @@ def admin_top():
     selected_price_mode = "manual"
     manual_input_override = None
 
-    # Step 3/4: 仮単価更新
+    # 仮単価更新の入力を受け取り、更新方法ごとに検証する
     if request.method == "POST":
         has_post_error = False
         update_mode = request.form.get("estimated_price_mode", "manual")
@@ -1542,7 +1573,7 @@ def admin_top():
         unfinalized_start_display = "- - - - -"
         unfinalized_start_date_tokyo = None
 
-    # メンバー選択肢とカード対象は role='user' のみ
+    # 管理者アカウントは集計対象に含めず、一般ユーザーのみ表示する
     user_members = (
         User.query
         .filter(User.role == "user")
@@ -1551,7 +1582,7 @@ def admin_top():
     )
     user_member_ids = {member.id for member in user_members}
 
-    # 未確定記録一覧の絞り込み入力を受け取る（Step 5）
+    # 未確定記録一覧の絞り込み入力値を受け取る
     selected_member_id = request.args.get("member_id", "").strip()
     filter_start_date = request.args.get("start_date", "").strip()
     filter_end_date = request.args.get("end_date", "").strip()
@@ -1591,7 +1622,7 @@ def admin_top():
             flash("終了日の形式が不正です。", "danger")
             has_filter_error = True
 
-    # 対象期間外入力をサーバー側で検証する（開始日は未確定期間開始日以上、終了日は今日以下）
+    # 絞り込み条件が未確定期間の範囲内かをサーバー側でも確認する
     if filter_start_date_obj is not None and unfinalized_start_date_tokyo is not None:
         if filter_start_date_obj < unfinalized_start_date_tokyo:
             flash("開始日は未確定期間の開始日以降を指定してください。", "danger")
@@ -1635,7 +1666,7 @@ def admin_top():
             )
             filter_end_utc = end_tokyo_dt.astimezone(timezone.utc)
 
-    # 仮単価表示は app_settings の先頭1件を採用する
+    # 画面に出す仮単価は設定テーブルの先頭1件を使う
     app_settings = AppSettings.query.order_by(AppSettings.id.asc()).first()
     estimated_unit_price = app_settings.estimated_unit_price if app_settings is not None else None
     if estimated_unit_price is not None:
@@ -1652,7 +1683,7 @@ def admin_top():
     if manual_input_override is not None:
         current_estimated_unit_price_input = manual_input_override
 
-    # 直近3件の確定単価平均値（表示用）
+    # UI表示用に、直近3件の確定単価の平均を計算する
     latest_three_finalized_bills = (
         FinalizedBill.query
         .order_by(FinalizedBill.period_end.desc(), FinalizedBill.id.desc())
@@ -1671,7 +1702,7 @@ def admin_top():
     else:
         latest_three_avg_unit_price_display = "- - -"
 
-    # 未確定期間の終了済み記録をメンバーごとに集計する（運転中は除外）
+    # 未確定期間の「停止済み記録」だけをメンバーごとに集計する
     ended_logs_query = (
         DeviceUsageLog.query
         .join(Device, DeviceUsageLog.device_id == Device.id)
@@ -1679,6 +1710,7 @@ def admin_top():
         .options(joinedload(DeviceUsageLog.device).joinedload(Device.user))
         .filter(
             User.role == "user",
+            DeviceUsageLog.deleted_at.is_(None),
             DeviceUsageLog.end_time.isnot(None),
         )
     )
@@ -1734,16 +1766,16 @@ def admin_top():
             }
         )
 
-    # 未確定期間内の最新開始日時が新しい順（該当なしは後ろ）
+    # 最近使っているメンバーが上に来るように並べ替える
     member_estimate_cards.sort(
         key=lambda item: (
             item["latest_start_time"] is not None,
-            item["latest_start_time"] or datetime.min.replace(tzinfo=timezone.utc),
+            item["latest_start_time"] or UTC_MIN_AWARE,
         ),
         reverse=True,
     )
 
-    # 未確定記録一覧（論理削除済みも含める）
+    # 管理画面では状態確認のため、論理削除済みも一覧に含める
     unfinalized_logs_query = (
         DeviceUsageLog.query
         .join(Device, DeviceUsageLog.device_id == Device.id)
@@ -1813,11 +1845,262 @@ def admin_top():
     )
 
 
+# =============================
+# ■ 管理者：シェアメンバー管理
+# =============================
+@app.route("/admin/users", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_users():
+    """管理者用のユーザー一覧表示と新規登録を行う。"""
+    form_data = {
+        "name": "",
+        "login_id": "",
+        "role": "user",
+        "theme_color": "color01",
+    }
+
+    if request.method == "POST":
+        # 登録フォームから入力値を受け取る
+        form_data["name"] = request.form.get("name", "").strip()
+        form_data["login_id"] = request.form.get("login_id", "").strip()
+        password = request.form.get("password", "")
+        form_data["role"] = request.form.get("role")
+        form_data["theme_color"] = request.form.get("theme_color")
+
+        # 必須項目の未入力チェック
+        if (
+            not form_data["name"]
+            or not form_data["login_id"]
+            or not password
+            or not form_data["role"]
+            or not form_data["theme_color"]
+        ):
+            flash("すべての項目を入力してください。", "danger")
+        # 役割は想定した値だけ許可する
+        elif form_data["role"] not in {"user", "admin"}:
+            flash("役割はメンバーまたは管理者を選択してください。", "danger")
+        # 画面の選択肢にない色コードは受け付けない
+        elif form_data["theme_color"] not in THEME_COLOR_MAP:
+            flash("テーマカラーの選択が不正です。", "danger")
+        elif User.query.filter_by(login_id=form_data["login_id"]).first() is not None:
+            flash("そのIDはすでに使用されています。", "danger")
+        else:
+            # パスワードはそのまま保存せず、ハッシュ化して保存する
+            new_user = User(
+                login_id=form_data["login_id"],
+                password_hash=generate_password_hash(password),
+                name=form_data["name"],
+                role=form_data["role"],
+                color=THEME_COLOR_MAP[form_data["theme_color"]],
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            flash("新しいシェアメンバーを登録しました。", "success")
+            return redirect(url_for("admin_users"))
+
+    # 一覧は登録順で表示する
+    users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
+    user_rows = [
+        {
+            "id": user.id,
+            "login_id": user.login_id,
+            "name": user.name,
+            "role": user.role,
+            "color": user.color,
+            "created_at_display": (
+                format_date_for_jst_display(user.created_at)
+                if user.created_at is not None
+                else ""
+            ),
+        }
+        for user in users
+    ]
+    return render_template("admin_users.html", users=user_rows, form_data=form_data)
+
+
+@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_user_delete(user_id):
+    """管理者がユーザーを削除する。"""
+    # 指定IDのユーザーがいない場合は一覧へ戻す
+    target_user = db.session.get(User, user_id)
+    if target_user is None:
+        flash("削除対象のシェアメンバーが見つかりません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    # ログイン中の自分自身は削除させない
+    if target_user.id == current_user.id:
+        flash("ログイン中のユーザー自身は削除できません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    # 機器を持つユーザーは削除させない
+    has_owned_device = (
+        Device.query
+        .filter(Device.user_id == target_user.id)
+        .first()
+        is not None
+    )
+    if has_owned_device:
+        flash("登録済み機器があるメンバーは削除できません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    # すでに確定請求の内訳に使われたユーザーは削除させない
+    has_finalized_bill_member = (
+        FinalizedBillMember.query
+        .filter(FinalizedBillMember.user_id == target_user.id)
+        .first()
+        is not None
+    )
+    if has_finalized_bill_member:
+        flash("確定済み電気料金の内訳データがあるメンバーは削除できません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    # 運転中の記録があるユーザーは削除させない
+    has_running_device = (
+        DeviceUsageLog.query
+        .join(Device, DeviceUsageLog.device_id == Device.id)
+        .filter(
+            Device.user_id == target_user.id,
+            DeviceUsageLog.end_time.is_(None),
+        )
+        .first()
+        is not None
+    )
+    if has_running_device:
+        flash("運転中の機器があるメンバーは削除できません。", "danger")
+        return redirect(url_for("admin_users"))
+
+    db.session.delete(target_user)
+    db.session.commit()
+    flash("シェアメンバーを削除しました。", "success")
+
+    return redirect(url_for("admin_users"))
+
+
+# =============================
+# ■ 管理者：機器管理
+# =============================
+@app.route("/admin/devices", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_devices():
+    """管理者用の機器一覧表示と新規登録を行う。"""
+    # 新規登録フォームの初期表示値
+    form_data = {
+        "name": "",
+        "user_id": "",
+        "power_kw": "",
+        "theme_color": "c1",
+    }
+
+    # 機器の利用者として選べるのは一般ユーザーのみ
+    users = (
+        User.query
+        .filter(User.role == "user")
+        .order_by(User.created_at.asc(), User.id.asc())
+        .all()
+    )
+
+    if request.method == "POST":
+        # フォーム入力値を取得（エラー時の再表示にも利用）
+        form_data["name"] = request.form.get("name", "").strip()
+        form_data["user_id"] = request.form.get("user_id")
+        form_data["power_kw"] = request.form.get("power_kw", "").strip()
+        form_data["theme_color"] = request.form.get("theme_color")
+
+        # 必須入力の未入力チェック
+        if (
+            not form_data["name"]
+            or not form_data["user_id"]
+            or not form_data["power_kw"]
+            or not form_data["theme_color"]
+        ):
+            flash("すべての項目を入力してください。", "danger")
+        # 画面の選択肢にない色コードは受け付けない
+        elif form_data["theme_color"] not in DEVICE_THEME_COLOR_MAP:
+            flash("テーマカラーの選択が不正です。", "danger")
+        else:
+            # user_id を数値化し、存在チェックに使う
+            try:
+                user_id = int(form_data["user_id"])
+            except ValueError:
+                user_id = None
+
+            target_user = db.session.get(User, user_id) if user_id is not None else None
+            # 存在する一般ユーザーだけを利用者として許可する
+            if target_user is None or target_user.role != "user":
+                flash("使用メンバーの選択が不正です。", "danger")
+            else:
+                # 消費電力は正の数値のみ許可する
+                try:
+                    power_kw = Decimal(form_data["power_kw"])
+                except InvalidOperation:
+                    power_kw = None
+
+                if power_kw is None or power_kw <= 0:
+                    flash("消費電力は0より大きい数値で入力してください。", "danger")
+                else:
+                    # 画面の選択値を実際のカラーコードに変換して保存する
+                    new_device = Device(
+                        name=form_data["name"],
+                        user_id=target_user.id,
+                        power_kw=power_kw,
+                        color=DEVICE_THEME_COLOR_MAP[form_data["theme_color"]],
+                    )
+                    db.session.add(new_device)
+                    db.session.commit()
+                    flash("新しい機器を登録しました。", "success")
+                    return redirect(url_for("admin_devices"))
+
+    # 一覧表示で利用者名も使うため、関連ユーザーを同時に読み込む
+    devices = (
+        Device.query
+        .options(joinedload(Device.user))
+        .order_by(Device.id.asc())
+        .all()
+    )
+    return render_template("admin_devices.html", devices=devices, users=users, form_data=form_data)
+
+
+@app.route("/admin/devices/<int:device_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_device_delete(device_id):
+    """管理者が機器を削除する。"""
+    # 指定IDの機器がない場合は一覧へ戻す
+    target_device = db.session.get(Device, device_id)
+    if target_device is None:
+        flash("削除対象の機器が見つかりません。", "danger")
+        return redirect(url_for("admin_devices"))
+
+    # 1件でも使用記録がある機器は削除させない
+    has_usage_log = (
+        DeviceUsageLog.query
+        .filter(DeviceUsageLog.device_id == target_device.id)
+        .first()
+        is not None
+    )
+    if has_usage_log:
+        flash("使用記録がある機器は削除できません。", "danger")
+        return redirect(url_for("admin_devices"))
+
+    db.session.delete(target_device)
+    db.session.commit()
+    flash("機器を削除しました。", "success")
+
+    return redirect(url_for("admin_devices"))
+
+
+# =============================
+# ■ 管理者：電気料金確定
+# =============================
 @app.route("/admin/bills/confirm", methods=["GET", "POST"])
 @login_required
 @admin_required
 def admin_bill_confirm():
-    """管理者用の電気料金確定画面（Step 2: 入力受け取りとプレビュー）を表示する。"""
+    """電気料金確定画面を表示し、入力値の検証と保存を行う。"""
     base_context = get_admin_bill_confirm_base_context()
     is_initial_confirm = base_context["is_initial_confirm"]
     fixed_period_start_utc = base_context["fixed_period_start_utc"]
@@ -1841,7 +2124,7 @@ def admin_bill_confirm():
     )
 
     if request.method == "POST":
-        # 入力値を取得し、入力保持用にも保持する
+        # POST後にエラーが出ても再入力しやすいよう、入力値を保持する
         form_period_start = request.form.get("period_start", "").strip()
         form_period_end = request.form.get("period_end", "").strip()
         form_billing_amount = request.form.get("billing_amount", "").strip()
@@ -1959,6 +2242,9 @@ def admin_bill_confirm_preview():
     )
 
 
+# =============================
+# ■ 管理者：確定済み電気料金一覧
+# =============================
 @app.route("/admin/bills", methods=["GET"])
 @login_required
 @admin_required
@@ -1971,7 +2257,7 @@ def admin_bills():
         .all()
     )
 
-    # 未計算状態で表示するプレースホルダーカードを作る
+    # データがないときに表示する空カード
     def build_uncalculated_member_cards():
         return [
             {
@@ -1984,7 +2270,7 @@ def admin_bills():
             for member in user_members
         ]
 
-    # 1件分の確定済み請求から、画面表示用カード配列を組み立てる
+    # 確定済み1件分の内訳を、画面用カードに整形する
     def build_member_cards_for_bill(finalized_bill):
         if (
             finalized_bill is None
@@ -2082,233 +2368,9 @@ def admin_bills():
     )
 
 
-@app.route("/admin/users", methods=["GET", "POST"])
-@login_required
-@admin_required
-def admin_users():
-    """管理者用のユーザー一覧表示と新規登録を行う。"""
-    form_data = {
-        "name": "",
-        "login_id": "",
-        "role": "user",
-        "theme_color": "color01",
-    }
-
-    if request.method == "POST":
-        # 新規登録フォームの入力値を取得
-        form_data["name"] = request.form.get("name", "").strip()
-        form_data["login_id"] = request.form.get("login_id", "").strip()
-        password = request.form.get("password", "")
-        form_data["role"] = request.form.get("role")
-        form_data["theme_color"] = request.form.get("theme_color")
-
-        # 必須項目の空欄チェック
-        if (
-            not form_data["name"]
-            or not form_data["login_id"]
-            or not password
-            or not form_data["role"]
-            or not form_data["theme_color"]
-        ):
-            flash("すべての項目を入力してください。")
-        # role は user/admin のみ許可
-        elif form_data["role"] not in {"user", "admin"}:
-            flash("役割はメンバーまたは管理者を選択してください。")
-        # 色丸で選んだ値だけを受け付ける
-        elif form_data["theme_color"] not in THEME_COLOR_MAP:
-            flash("テーマカラーの選択が不正です。")
-        elif User.query.filter_by(login_id=form_data["login_id"]).first() is not None:
-            flash("そのIDはすでに使用されています。")
-        else:
-            # パスワードは平文保存せず、必ずハッシュ化して保存
-            new_user = User(
-                login_id=form_data["login_id"],
-                password_hash=generate_password_hash(password),
-                name=form_data["name"],
-                role=form_data["role"],
-                color=THEME_COLOR_MAP[form_data["theme_color"]],
-            )
-            db.session.add(new_user)
-            db.session.commit()
-            flash("新しいシェアメンバーを登録しました。")
-            return redirect(url_for("admin_users"))
-
-    # ユーザー管理画面で表示する一覧を取得（古い登録順）
-    users = User.query.order_by(User.created_at.asc(), User.id.asc()).all()
-    return render_template("admin_users.html", users=users, form_data=form_data)
-
-
-@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
-@login_required
-@admin_required
-def admin_user_delete(user_id):
-    """管理者がユーザーを削除する。"""
-    # ID指定で削除対象ユーザーを取得し、存在しない場合は一覧へ戻す
-    target_user = db.session.get(User, user_id)
-    if target_user is None:
-        flash("削除対象のシェアメンバーが見つかりません。")
-        return redirect(url_for("admin_users"))
-
-    # ログイン中のユーザー自身は削除不可（安全のため）
-    if target_user.id == current_user.id:
-        flash("ログイン中のユーザー自身は削除できません。")
-        return redirect(url_for("admin_users"))
-
-    # 所有機器が1台でもある場合は削除不可
-    has_owned_device = (
-        Device.query
-        .filter(Device.user_id == target_user.id)
-        .first()
-        is not None
-    )
-    if has_owned_device:
-        flash("登録済み機器があるメンバーは削除できません。")
-        return redirect(url_for("admin_users"))
-
-    # 確定済み電気料金の内訳が1件でもある場合は削除不可
-    has_finalized_bill_member = (
-        FinalizedBillMember.query
-        .filter(FinalizedBillMember.user_id == target_user.id)
-        .first()
-        is not None
-    )
-    if has_finalized_bill_member:
-        flash("確定済み電気料金の内訳データがあるメンバーは削除できません。")
-        return redirect(url_for("admin_users"))
-
-    # 運転中(end_time が NULL)の機器記録がある場合は削除不可
-    has_running_device = (
-        DeviceUsageLog.query
-        .join(Device, DeviceUsageLog.device_id == Device.id)
-        .filter(
-            Device.user_id == target_user.id,
-            DeviceUsageLog.end_time.is_(None),
-        )
-        .first()
-        is not None
-    )
-    if has_running_device:
-        flash("運転中の機器があるメンバーは削除できません。")
-        return redirect(url_for("admin_users"))
-
-    db.session.delete(target_user)
-    db.session.commit()
-    flash("シェアメンバーを削除しました。")
-
-    return redirect(url_for("admin_users"))
-
-
-@app.route("/admin/devices", methods=["GET", "POST"])
-@login_required
-@admin_required
-def admin_devices():
-    """管理者用の機器一覧表示と新規登録を行う。"""
-    # 新規登録フォームの初期値
-    form_data = {
-        "name": "",
-        "user_id": "",
-        "power_kw": "",
-        "theme_color": "c1",
-    }
-
-    # 使用メンバー選択肢は一般ユーザー(role='user')のみ表示
-    users = (
-        User.query
-        .filter(User.role == "user")
-        .order_by(User.created_at.asc(), User.id.asc())
-        .all()
-    )
-
-    if request.method == "POST":
-        # フォーム入力値を取得（エラー時の再表示にも使う）
-        form_data["name"] = request.form.get("name", "").strip()
-        form_data["user_id"] = request.form.get("user_id")
-        form_data["power_kw"] = request.form.get("power_kw", "").strip()
-        form_data["theme_color"] = request.form.get("theme_color")
-
-        # 必須入力チェック
-        if (
-            not form_data["name"]
-            or not form_data["user_id"]
-            or not form_data["power_kw"]
-            or not form_data["theme_color"]
-        ):
-            flash("すべての項目を入力してください。")
-        # 色丸で選択できる値だけを受け付ける
-        elif form_data["theme_color"] not in DEVICE_THEME_COLOR_MAP:
-            flash("テーマカラーの選択が不正です。")
-        else:
-            # user_id は数値で受け取り、users に存在するIDかを確認
-            try:
-                user_id = int(form_data["user_id"])
-            except ValueError:
-                user_id = None
-
-            target_user = db.session.get(User, user_id) if user_id is not None else None
-            # 存在し、かつ一般ユーザー(role='user')のみ登録を許可
-            if target_user is None or target_user.role != "user":
-                flash("使用メンバーの選択が不正です。")
-            else:
-                # power_kw は数値として扱い、負数や文字列を除外する
-                try:
-                    power_kw = Decimal(form_data["power_kw"])
-                except InvalidOperation:
-                    power_kw = None
-
-                if power_kw is None or power_kw <= 0:
-                    flash("消費電力は0より大きい数値で入力してください。")
-                else:
-                    # 色丸UIの選択値をカラーコードに変換して保存
-                    new_device = Device(
-                        name=form_data["name"],
-                        user_id=target_user.id,
-                        power_kw=power_kw,
-                        color=DEVICE_THEME_COLOR_MAP[form_data["theme_color"]],
-                    )
-                    db.session.add(new_device)
-                    db.session.commit()
-                    flash("新しい機器を登録しました。")
-                    return redirect(url_for("admin_devices"))
-
-    # 一覧表示で使用メンバー名も同時に参照するため、関連ユーザーをまとめて取得
-    devices = (
-        Device.query
-        .options(joinedload(Device.user))
-        .order_by(Device.id.asc())
-        .all()
-    )
-    return render_template("admin_devices.html", devices=devices, users=users, form_data=form_data)
-
-
-@app.route("/admin/devices/<int:device_id>/delete", methods=["POST"])
-@login_required
-@admin_required
-def admin_device_delete(device_id):
-    """管理者が機器を削除する。"""
-    # ID指定で削除対象機器を取得し、存在しない場合は一覧へ戻す
-    target_device = db.session.get(Device, device_id)
-    if target_device is None:
-        flash("削除対象の機器が見つかりません。")
-        return redirect(url_for("admin_devices"))
-
-    # 使用記録が1件でもある機器は削除不可
-    has_usage_log = (
-        DeviceUsageLog.query
-        .filter(DeviceUsageLog.device_id == target_device.id)
-        .first()
-        is not None
-    )
-    if has_usage_log:
-        flash("使用記録がある機器は削除できません。")
-        return redirect(url_for("admin_devices"))
-
-    db.session.delete(target_device)
-    db.session.commit()
-    flash("機器を削除しました。")
-
-    return redirect(url_for("admin_devices"))
-
-
+# =============================
+# ■ 共通：レスポンス後処理
+# =============================
 @app.after_request
 def add_no_cache_headers(response):
     """ログイン済みレスポンスにキャッシュ抑止ヘッダーを付与する。"""
@@ -2317,3 +2379,12 @@ def add_no_cache_headers(response):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
+
+
+# =============================
+# ■ 共通：開発用サーバー起動設定
+# =============================
+if __name__ == '__main__':
+    # host='0.0.0.0' にすることで、同一Wi-Fi内のスマホなど別デバイスからアクセス可能になる
+    # ※本設定は開発環境用。Renderデプロイ時はGunicornで起動されるため影響なし
+    app.run(host='0.0.0.0', port=5000, debug=True)

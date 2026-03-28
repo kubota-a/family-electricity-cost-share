@@ -79,22 +79,31 @@
         .flash-message { padding: 12px; border-radius: 8px; margin-top: 20px; font-size: 0.85rem; text-align: center; border: 1px solid transparent; }
         .flash-message.success { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
         .flash-message.danger { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
+        .flash-message.notice { background: #f5f5f5; color: #555; border-color: #ddd; }
         .btn-submit { display: block; width: 100%; max-width: 300px; margin: 25px auto 0; padding: 14px; background: var(--primary-color); color: #fff; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(216, 140, 140, 0.3); }
         .btn-submit:hover { opacity: 0.8; transform: translateY(-1px); }
 
         /* 右側：カルーセル */
         .preview-section { display: flex; flex-direction: column; align-items: center; }
         .preview-title { font-weight: bold; color: #666; margin-bottom: 15px; width: 100%; text-align: left; padding-left: 10px;}
+        .preview-empty-message {
+            width: 100%;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: #666;
+            font-weight: bold;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
         
         .carousel-vertical { height: 620px; position: relative; display: flex; flex-direction: column; align-items: center; gap: 20px; }
         .carousel-track { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; padding: 10px 0; height: 100%; width: 280px; }
         .carousel-track::-webkit-scrollbar { display: none; }
 
         .preview-card { min-height: 160px; width: 100%; border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; scroll-snap-align: start; box-shadow: 0 2px 8px rgba(0,0,0,0.04); flex-shrink: 0; }
-        .card-hanako { background-color: #fff0f3; }
-        .card-taro { background-color: #f0f4ff; }
-        .card-ichiro { background-color: #f1fcf0; }
-
         .preview-card h3 { font-size: 1rem; padding-bottom: 8px; margin-bottom: 8px; text-align: center; color: #555; }
         
         .price-details-box { background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 12px; }
@@ -188,7 +197,7 @@
             border: none;
             transition: opacity 0.2s;
         }
-        .btn-cancel { background: #f0f0f0; color: #666; }
+        .btn-cancel { background: rgba(219, 219, 219, 1); color: #666; }
         .btn-confirm { background: #d68080; color: white; }
         .modal-actions button:hover { opacity: 0.85; }
 
@@ -298,9 +307,10 @@
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                 {% set category, message = messages[-1] %}
-                <div id="confirmFlashMessage" class="flash-message {{ 'danger' if category == 'danger' else 'success' }}">{{ message }}</div>
+                {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+                <div id="confirmFlashMessage" class="flash-message {{ flash_class }}">{{ message }}</div>
                 {% else %}
-                <div id="confirmFlashMessage" class="flash-message danger" style="display: none;"></div>
+                <div id="confirmFlashMessage" class="flash-message notice" style="display: none;"></div>
                 {% endif %}
                 {% endwith %}
                 
@@ -344,19 +354,36 @@
 
             <div class="preview-section">
                 <p class="preview-title">プレビュー</p>
+                {% if not preview_members %}
+                <div class="preview-empty-message">
+                    シェアメンバーが登録されていないため、<br>
+                    プレビューを表示できません。
+                </div>
+                {% endif %}
                 <div class="carousel-vertical">
                     <button class="nav-btn" onclick="scrollCarousel(-1)"><i class="fas fa-chevron-up"></i></button>
                     <div class="carousel-track" id="previewCarousel">
-                        {% for member in preview_members %}
-                        <div class="preview-card" style="background-color: {{ member.card_color }};">
-                            <h3>{{ member.member_name }}</h3>
-                            <div class="price-details-box">
-                                <div class="price-line total"><span>シェア金額：</span><span>{{ member.share_amount_display }}</span></div>
-                                <div class="price-line"><span>機器使用分：</span><span>{{ member.device_usage_amount_display }}</span></div>
-                                <div class="price-line"><span>割り勘分：</span><span>{{ member.equal_share_amount_display }}</span></div>
+                        {% if preview_members %}
+                            {% for member in preview_members %}
+                            <div class="preview-card" style="background-color: {{ member.card_color }};">
+                                <h3>{{ member.member_name }}</h3>
+                                <div class="price-details-box">
+                                    <div class="price-line total"><span>シェア金額：</span><span>{{ member.share_amount_display }}</span></div>
+                                    <div class="price-line"><span>機器使用分：</span><span>{{ member.device_usage_amount_display }}</span></div>
+                                    <div class="price-line"><span>割り勘分：</span><span>{{ member.equal_share_amount_display }}</span></div>
+                                </div>
                             </div>
-                        </div>
-                        {% endfor %}
+                            {% endfor %}
+                        {% else %}
+                            <div class="preview-card" style="background-color: #f2f2f2;">
+                                <h3>-</h3>
+                                <div class="price-details-box">
+                                    <div class="price-line total"><span>シェア金額：</span><span>- - - - -円</span></div>
+                                    <div class="price-line"><span>機器使用分：</span><span>- - - - -円</span></div>
+                                    <div class="price-line"><span>割り勘分：</span><span>- - - - -円</span></div>
+                                </div>
+                            </div>
+                        {% endif %}
                     </div>
                     <button class="nav-btn" onclick="scrollCarousel(1)"><i class="fas fa-chevron-down"></i></button>
                 </div>

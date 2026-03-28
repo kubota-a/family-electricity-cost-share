@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>いえ電シェア - マイページ</title>
+    <title>いえ電シェア - トップページ</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -24,40 +24,45 @@
         }
 
         body {
-            background-color: #f0f0f0;
+            background-color: rgba(223, 221, 221, 1);
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
         }
 
         .phone-container {
             width: 100%;
             max-width: 430px;
-            height: 90vh;
+            min-height: 100vh;
+            height: 100dvh;
             background-color: var(--bg-color);
             position: relative;
-            /* 全体の overflow-y: auto; を維持しつつ、内部スクロールと干渉しないよう管理 */
-            overflow-y: hidden;
-            border-radius: 40px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.2);
-            border: 8px solid #333;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         /* PCブラウザでの表示バランス最適化（他の画面と統一） */
         @media (min-width: 431px) {
             body {
                 padding: 20px;
+                align-items: center;
                 height: 100vh;
                 overflow: hidden;
             }
             .phone-container {
                 width: min(390px, 100%);
+                min-height: auto;
                 height: auto;
                 aspect-ratio: 9 / 19.5;
                 max-height: 850px;
+                overflow: hidden;
+                border-radius: 40px;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+                border: 8px solid #333;
             }
         }
 
@@ -69,6 +74,9 @@
             align-items: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 20;
         }
 
         .header-logo {
@@ -90,7 +98,8 @@
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
-            color: #c47a8a;
+            color: rgba(196, 122, 138, 1);
+            font-size: 21px;
         }
 
         .lock-icon {
@@ -110,16 +119,15 @@
 
         /* モーダルオーバーレイ */
         .modal-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
+            padding: 16px;
             background-color: rgba(0, 0, 0, 0.4); /* 背景を少し暗く */
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 100;
+            overflow-y: auto;
+            z-index: 1000;
         }
 
         .modal-overlay.active {
@@ -128,8 +136,9 @@
 
         /* モーダルコンテンツ */
         .modal-content {
-            width: 85%;
-            background: #ffffff;
+            width: min(90%, 360px);
+            max-height: calc(100dvh - 32px);
+            background: var(--card-bg);
             border-radius: 30px;
             padding: 40px 20px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
@@ -137,6 +146,20 @@
             display: flex;
             flex-direction: column;
             gap: 25px;
+            overflow-y: auto;
+        }
+
+        @media (min-width: 431px) {
+            .modal-overlay {
+                position: absolute;
+                inset: 0;
+                padding: 0;
+                overflow-y: visible;
+                z-index: 100;
+            }
+            .modal-content {
+                max-height: 90%;
+            }
         }
 
         .modal-title {
@@ -186,12 +209,47 @@
             max-width: 150px;
             padding: 10px;
             border-radius: 10px;
-            border: 1px solid #999;
-            background: #f8f8f8;
+            border-color: rgba(0, 0, 0, 0);
+            border-image: none;
+            border-width: 0px;
+            border-style: none;
+            background: rgba(219, 219, 219, 1);
             color: #666;
             font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
+        }
+
+        #confirmStartButton {
+            background-color: rgba(245, 183, 177, 1);
+            border-color: rgba(0, 0, 0, 0);
+            color: rgba(122, 58, 72, 1);
+            font-size: 25px;
+            border-width: 0px;
+            border-style: none;
+            border-image: none;
+            border-radius: 40px;
+            line-height: 1;
+        }
+
+        #logoutModal .btn-main {
+            background-color: rgba(245, 183, 177, 1);
+            border-color: rgba(0, 0, 0, 0);
+            color: rgba(122, 58, 72, 1);
+            font-size: 25px;
+            border-width: 0px;
+            border-style: none;
+            border-image: none;
+            border-radius: 40px;
+            line-height: 1;
+        }
+
+        #cancelStartButton {
+            border-color: rgba(0, 0, 0, 0);
+            border-image: none;
+            border-width: 0px;
+            border-style: none;
+            background: rgba(219, 219, 219, 1);
         }
 
         #startConfirmModal .modal-content {
@@ -203,11 +261,13 @@
             background-color: #ff9999;
             color: #000;
             padding: 20px 50px;
-            border-radius: 50px;
+            border-radius: 20px;
             font-size: 2rem;
             font-weight: bold;
             margin: 0 auto;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .confirm-message {
@@ -241,7 +301,16 @@
             color: #666;
             font-weight: bold;
             box-shadow: var(--shadow);
-            font-size: 0.9rem;
+            font-size: 20px;
+        }
+        .flash-message.success {
+            color: #26B562;
+        }
+        .flash-message.danger {
+            color: #d9534f;
+        }
+        .flash-message.notice {
+            color: #666;
         }
 
         .action-grid {
@@ -268,6 +337,15 @@
             line-height: 1.5;
         }
 
+        .action-card > div {
+            font-size: 23px;
+            line-height: 28px;
+        }
+
+        .action-grid > a.action-card > div {
+            color: rgba(122, 58, 72, 1);
+        }
+
         .action-card-icon {
             font-size: 2.5rem;
             margin-bottom: 10px;
@@ -283,19 +361,31 @@
             flex-shrink: 0;
         }
 
-        /* 「暖房」から始まるリストをスクロール可能に */
+        /* 機器リストをスクロール可能に */
         .device-list {
             display: flex;
             flex-direction: column;
+            flex-grow: 1;
+            min-height: 0;
             gap: 12px;
             overflow-y: auto;
-            padding-bottom: 10px;
+            padding-bottom: calc(180px + env(safe-area-inset-bottom));
             /* スクロールバーを非表示にする設定（任意） */
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
         .device-list::-webkit-scrollbar {
             display: none;
+        }
+        .empty-device-message {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 14px 12px;
+            color: #666;
+            font-weight: bold;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            box-shadow: var(--shadow);
         }
 
         .device-item {
@@ -321,7 +411,7 @@
         }
 
         .device-name {
-            font-size: 1.4rem;
+            font-size: 23px;
             font-weight: bold;
             color: #333;
             flex-grow: 0;
@@ -351,9 +441,11 @@
 
     <main>
         <h1>{{ user_name }}さんのマイページ</h1>
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="flash-message">{{ messages[-1] }}</div>
+        {% set category, message = messages[-1] %}
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
         {% endif %}
         {% endwith %}
 
@@ -371,22 +463,29 @@
         <p class="section-title">運転を開始する</p>
 
         <div class="device-list">
-            {% for device in devices %}
-            <form action="{{ url_for('user_usage_start') }}" method="post" class="start-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="device_id" value="{{ device.id }}">
-                <button type="button" class="device-item start-button" data-device-name="{{ device.name }}" data-device-color="{{ device.color }}">
-                    <div class="status-circle" style="background-color: {{ device.color }};"></div>
-                    <span class="device-name">{{ device.name }}</span>
-                </button>
-            </form>
-            {% endfor %}
+            {% if devices %}
+                {% for device in devices %}
+                <form action="{{ url_for('user_usage_start') }}" method="post" class="start-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="device_id" value="{{ device.id }}">
+                    <button type="button" class="device-item start-button" data-device-name="{{ device.name }}" data-device-color="{{ device.color }}">
+                        <div class="status-circle" style="background-color: {{ device.color }};"></div>
+                        <span class="device-name">{{ device.name }}</span>
+                    </button>
+                </form>
+                {% endfor %}
+            {% else %}
+                <p class="empty-device-message">
+                    登録されている機器がありません。<br>
+                    機器を登録してから、運転を開始してください。
+                </p>
+            {% endif %}
         </div>
     </main>
 
     <div class="modal-overlay" id="startConfirmModal">
         <div class="modal-content">
-            <div class="device-badge" id="startConfirmDeviceBadge">暖房</div>
+            <div class="device-badge" id="startConfirmDeviceBadge">-</div>
             <p class="confirm-message">運転を<br>開始しますか？</p>
             <div class="button-group">
                 <button class="btn-main" type="button" id="confirmStartButton">開始する</button>
@@ -428,8 +527,13 @@
     // 運転開始確認モーダルの開閉制御
     startButtons.forEach(function (startButton) {
         startButton.addEventListener("click", function () {
+            const deviceName = startButton.dataset.deviceName;
+            if (!deviceName) {
+                return;
+            }
+
             pendingStartForm = startButton.closest(".start-form");
-            startConfirmDeviceBadge.textContent = startButton.dataset.deviceName;
+            startConfirmDeviceBadge.textContent = deviceName;
             startConfirmDeviceBadge.style.backgroundColor = startButton.dataset.deviceColor;
             startConfirmModal.classList.add("active");
         });

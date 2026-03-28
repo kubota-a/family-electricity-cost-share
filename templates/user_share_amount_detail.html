@@ -25,7 +25,7 @@
         }
 
         body {
-            background-color: #f0f0f0;
+            background-color: rgba(223, 221, 221, 1);
             display: flex;
             justify-content: center;
             align-items: flex-start;
@@ -67,6 +67,9 @@
             align-items: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 20;
         }
         .header-logo i { color: var(--accent-pink); font-size: 1.4rem; }
         .header-logo {
@@ -78,8 +81,8 @@
             left: 50%;
             transform: translateX(-50%);
             font-weight: bold;
-            color: var(--text-color);
-            font-size: clamp(0.9rem, 4vw, 1.1rem);
+            color: rgba(196, 122, 138, 1);
+            font-size: 21px;
         }
 
         main {
@@ -90,24 +93,27 @@
         }
 
         .detail-header {
-            margin-bottom: 35px;
+            margin-bottom: 18px;
         }
 
         .period-title {
-            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            font-size: 23px;
             font-weight: bold;
             display: block;
             margin-bottom: 5px;
+            color: #7a3a48;
         }
 
         .confirm-date {
-            font-size: 0.9rem;
+            font-size: 22px;
+            font-weight: 700;
             color: #777;
         }
 
         .total-electricity {
             display: block;
-            font-size: clamp(0.825rem, 3.75vw, 1.05rem);
+            font-size: 22px;
+            font-weight: 700;
             color: #777;
             line-height: 1.6;
             margin-top: 5px;
@@ -116,21 +122,23 @@
 
         .total-amount-card {
             background: var(--card-bg);
-            border: 2px solid #ddd;
+            border: none;
             border-radius: 25px;
-            padding: 30px 20px;
-            margin-bottom: 35px;
+            padding: 20px 20px;
+            margin-bottom: 22px;
             box-shadow: var(--shadow);
         }
 
         .total-label {
-            font-size: clamp(1rem, 4.5vw, 1.2rem);
-            margin-bottom: 10px;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 6px;
             display: block;
+            color: #7a3a48;
         }
 
         .total-value {
-            font-size: clamp(1.5rem, 7vw, 2rem);
+            font-size: 35px;
             font-weight: bold;
             color: var(--text-color);
         }
@@ -140,7 +148,7 @@
             align-items: center;
             justify-content: flex-start;
             gap: 10px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             padding-left: 5px;
         }
 
@@ -161,11 +169,11 @@
             border-radius: 20px;
             overflow: hidden;
             box-shadow: var(--shadow-light);
-            margin-bottom: 20px;
+            margin-bottom: 14px;
         }
 
         .breakdown-row {
-            padding: 20px;
+            padding: 14px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -173,44 +181,45 @@
         }
 
         .breakdown-row:first-child {
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid rgba(238, 238, 238, 1);
         }
 
         .item-label {
-            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            font-size: 24px;
             color: var(--text-color);
         }
 
         .item-value {
-            font-size: clamp(1.1rem, 5vw, 1.4rem);
+            font-size: 24px;
         }
 
         .calculation-note {
             font-size: clamp(1.1rem, 5vw, 1.4rem);
             color: #777;
-            line-height: 1.6;
+            line-height: 27px;
             margin-bottom: 20px;
         }
 
         footer {
-            position: absolute;
+            position: sticky;
             bottom: 0;
             width: 100%;
+            margin-top: auto;
             background: var(--bg-color);
-            padding: 15px 20px 30px;
+            padding: 8px 20px 12px;
             text-align: center;
-            z-index: 10;
+            z-index: 20;
         }
 
         .footer-button {
             width: 100%;
             max-width: 350px;
             padding: 12px;
-            border-radius: 12px;
+            border-radius: 40px;
             border: none;
             background: #f5b7b1;
             color: #7a3a48;
-            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            font-size: 23px;
             font-weight: bold;
             cursor: pointer;
             text-decoration: none;
@@ -236,7 +245,7 @@
             <span class="total-electricity">お家全体の電気代　{{ detail.total_electricity_display }}</span>
         </div>
 
-        <div class="total-amount-card" style="background-color: {{ current_user.color }};">
+        <div class="total-amount-card">
             <span class="total-label">{{ current_user.name }}さんのシェア金額</span>
             <span class="total-value">{{ detail.share_amount_display }}</span>
         </div>

@@ -17,7 +17,7 @@
             --card-bg: #ffffff;
             --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
             --flash-green: #2ecc71;
-            --usage-item-time-min-height: calc(2 * 1.4em);
+            --usage-item-time-min-height: calc(2 * 22px);
         }
 
         * {
@@ -28,21 +28,25 @@
         }
 
         body {
-            background-color: #f0f0f0;
+            background-color: rgba(223, 221, 221, 1);
             display: flex;
             justify-content: center;
             align-items: flex-start;
             min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden;
         }
 
         .phone-container {
             width: 100%;
             max-width: 430px;
             min-height: 100vh;
+            height: 100dvh;
             background-color: var(--bg-color);
             position: relative;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         @media (min-width: 431px) {
@@ -61,6 +65,22 @@
                 box-shadow: 0 24px 64px rgba(0,0,0,0.28);
                 overflow: hidden;
             }
+            .phone-container footer {
+                position: absolute;
+                left: 0;
+                transform: none;
+                width: 100%;
+            }
+            .modal-overlay {
+                position: absolute;
+                inset: 0;
+                padding: 0;
+                overflow-y: visible;
+                z-index: 100;
+            }
+            .modal-content {
+                max-height: 90%;
+            }
         }
 
         header {
@@ -70,6 +90,9 @@
             align-items: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 20;
         }
         .header-logo i { color: var(--accent-pink); font-size: 1.4rem; }
         .header-logo {
@@ -81,8 +104,8 @@
             left: 50%;
             transform: translateX(-50%);
             font-weight: bold;
-            color: var(--text-color);
-            font-size: clamp(0.9rem, 4vw, 1.1rem);
+            color: rgba(196, 122, 138, 1);
+            font-size: 21px;
         }
 
         .fixed-content {
@@ -92,28 +115,46 @@
 
         .summary-card {
             background: var(--card-bg);
-            border: 2px solid #ddd;
-            border-radius: 15px;
+            border: none;
+            border-radius: 25px;
             padding: 15px;
             margin-bottom: 10px;
+            box-shadow: var(--shadow);
         }
-        .summary-title { font-size: clamp(0.85rem, 3.5vw, 1rem); margin-bottom: 5px; }
-        .summary-amount { font-size: clamp(1.2rem, 5vw, 1.5rem); font-weight: bold; }
+        .summary-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            color: rgba(74, 74, 74, 1);
+        }
+        .summary-amount {
+            font-size: clamp(1.2rem, 5vw, 1.5625rem);
+            font-weight: bold;
+            color: rgba(122, 58, 72, 1);
+        }
 
         .note { font-size: 0.7rem; color: #888; line-height: 1.4; margin-bottom: 10px; }
 
         .flash-message {
             color: var(--flash-green);
             font-weight: bold;
-            font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+            font-size: 20px;
             margin-bottom: 15px;
+        }
+        .flash-message.success {
+            color: #26B562;
         }
         .flash-message.danger {
             color: #d9534f;
         }
+        .flash-message.notice {
+            color: #666;
+        }
 
         .instruction {
-            font-size: clamp(0.9rem, 3.8vw, 1rem);
+            font-size: clamp(0.9rem, 3.8vw, 1.125rem);
+            font-weight: 700;
+            color: rgba(122, 58, 72, 1);
             line-height: 1.5;
             margin-bottom: 15px;
             display: flex;
@@ -121,7 +162,14 @@
             justify-content: center;
             gap: 5px;
         }
-        .instruction i { color: var(--check-blue); font-size: 1.4rem; }
+        .instruction-dot {
+            width: 1.05rem;
+            height: 1.05rem;
+            border-radius: 50%;
+            background-color: #d3d3d3;
+            display: inline-block;
+            flex-shrink: 0;
+        }
 
         .filter-section {
             padding: 0 20px 10px;
@@ -133,14 +181,16 @@
             border-radius: 8px;
             border: 1px solid #ccc;
             background-color: #fff;
-            font-size: 0.9rem;
+            font-size: 17px;
             color: var(--text-color);
         }
 
         .usage-list {
             flex-grow: 1;
+            min-height: 0;
             overflow-y: auto;
-            padding: 10px 20px 100px;
+            padding: 10px 20px 180px;
+            padding-bottom: calc(180px + env(safe-area-inset-bottom));
         }
         .empty-message {
             text-align: center;
@@ -171,10 +221,11 @@
         }
         .item-name {
             font-weight: bold;
-            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            font-size: 23px;
         }
         .item-price {
             font-weight: bold;
+            font-size: 23px;
             color: var(--text-color);
             transform: translateX(-0.5em);
         }
@@ -183,14 +234,16 @@
             justify-content: space-between;
             align-items: center;
             gap: 8px;
-            font-size: 0.85rem;
+            font-size: 16px;
             color: #666;
-            line-height: 1.4;
+            line-height: 22px;
             min-height: var(--usage-item-time-min-height);
         }
         .item-time-main {
             flex: 1;
             min-width: 0;
+            font-size: 16px;
+            line-height: 22px;
         }
         .badge-status {
             padding: 4px 12px;
@@ -207,29 +260,38 @@
 
         .check-icon {
             margin-left: 15px;
-            color: var(--check-blue);
-            font-size: 2.2rem;
+            width: 2.2rem;
+            height: 2.2rem;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.15s ease, filter 0.15s ease;
+        }
+        .check-icon:hover {
+            transform: scale(1.05);
+            filter: brightness(0.96);
         }
 
         /* 編集削除選択モーダル（Step 1: テンプレート化のみ） */
         .modal-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
+            padding: 16px;
             background-color: rgba(0, 0, 0, 0.4);
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 100;
+            overflow-y: auto;
+            z-index: 1000;
         }
         .modal-overlay.active {
             display: flex;
         }
         .modal-content {
-            width: 90%;
-            background: var(--card-bg);
+            width: min(90%, 360px);
+            max-height: calc(100dvh - 32px);
+            background: var(--bg-color);
             border-radius: 30px;
             padding: 30px 20px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
@@ -237,36 +299,64 @@
             display: flex;
             flex-direction: column;
             gap: 25px;
+            overflow-y: auto;
         }
         .target-record-card {
             background: #fff;
             width: 100%;
             padding: 15px;
-            border-radius: 18px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-radius: 15px;
+            box-shadow: 0 4px 3px 0 rgba(0, 0, 0, 0.1);
             display: flex;
             align-items: center;
-            border-left: 8px solid #ff9999;
+            gap: 12px;
             text-align: left;
+        }
+        .record-color-dot {
+            width: 1.54rem;
+            height: 1.54rem;
+            font-size: 17px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
         }
         .record-info {
             flex-grow: 1;
+            min-width: 0;
         }
         .record-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
+            gap: 8px;
             margin-bottom: 8px;
         }
-        .record-name, .record-price {
-            font-size: 1.2rem;
+        .record-name {
+            font-weight: bold;
+            font-size: 21px;
+            line-height: 1.2;
+            color: var(--text-color);
+            min-width: 0;
+            word-break: break-word;
+        }
+        .record-price {
+            font-size: 21px;
             font-weight: bold;
             color: var(--text-color);
+            flex-shrink: 0;
         }
         .record-time {
-            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
             color: #666;
-            line-height: 1.5;
+            line-height: 22px;
+        }
+        .record-time-main {
+            flex: 1;
+            min-width: 0;
         }
         .confirm-message {
             font-size: 1.2rem;
@@ -281,7 +371,8 @@
         }
         .action-btn {
             background: #fff;
-            border: 2px solid #ddd;
+            border: none;
+            border-image: none;
             border-radius: 20px;
             padding: 20px 10px;
             display: flex;
@@ -291,6 +382,7 @@
             cursor: pointer;
             text-decoration: none;
             color: var(--text-color);
+            box-shadow: 0 4px 3px 0 rgba(0, 0, 0, 0.15);
         }
         .action-btn i {
             font-size: 2rem;
@@ -298,40 +390,48 @@
         .icon-delete { color: var(--accent-pink-dark); }
         .icon-edit { color: #89b3d9; }
         .action-btn span {
-            font-size: 1.1rem;
+            font-size: 21px;
             font-weight: bold;
         }
         .btn-cancel {
+            align-self: center;
             width: 100%;
             max-width: 150px;
             padding: 10px;
             border-radius: 10px;
-            border: 1px solid #999;
-            background: #f8f8f8;
+            border-color: rgba(0, 0, 0, 0);
+            border-image: none;
+            border-width: 0px;
+            border-style: none;
+            background: rgba(219, 219, 219, 1);
             color: #666;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
         }
 
         footer {
-            position: absolute;
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
             bottom: 0;
-            width: 100%;
+            width: min(430px, 100%);
             background: var(--bg-color);
-            padding: 15px 20px 30px;
+            padding: 8px 20px 20px;
+            padding-bottom: calc(20px + env(safe-area-inset-bottom));
             text-align: center;
+            z-index: 40;
         }
 
         .footer-button {
             width: 100%;
             max-width: 350px;
             padding: 12px;
-            border-radius: 12px;
-            border: 3px solid #666;
-            background: #fff;
-            color: var(--text-color);
-            font-size: clamp(1rem, 4.5vw, 1.2rem);
+            border-radius: 40px;
+            border: none;
+            background: rgba(245, 183, 177, 1);
+            color: rgba(122, 58, 72, 1);
+            font-size: 23px;
             font-weight: bold;
             cursor: pointer;
             text-decoration: none;
@@ -355,17 +455,18 @@
                 {% if unfinalized_start_display == "初回利用記録" %}
                 初回利用記録<br>機器使用料(目安)
                 {% else %}
-                {{ unfinalized_start_display }}以降の<br>機器使用料(目安)
+                {{ unfinalized_start_display }}以降の機器使用料
                 {% endif %}
             </div>
-            <div class="summary-amount">合計{{ summary_total_yen }}円</div>
+            <div class="summary-amount">合計{{ summary_total_yen }}円（※目安）</div>
         </div>
         <p class="note">※使用料は仮単価で算出した目安です。<br>請求額確定後に再計算されます。</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% set category, message = messages[-1] %}
-        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
         {% else %}
         <div class="flash-message"></div>
         {% endif %}
@@ -373,7 +474,7 @@
 
         <div class="instruction">
             操作したい記録の<br>
-            <i class="fas fa-check-circle"></i> を押してください
+            <span class="instruction-dot" aria-hidden="true"></span> を押してください
         </div>
     </div>
 
@@ -406,12 +507,12 @@
                         <br>OFF &nbsp; {{ usage_log.end_time_display }}
                         {% endif %}
                     </div>
-                    {% if usage_log.end_time_display is none %}
+                    {% if usage_log.is_running %}
                     <span class="badge-status badge-on">運転中</span>
                     {% endif %}
                 </div>
             </div>
-            <i class="fas fa-check-circle check-icon" data-modal-id="usageActionModal-{{ usage_log.id }}"></i>
+            <i class="check-icon" style="background-color: {{ usage_log.device_color or '#d3d3d3' }};" data-modal-id="usageActionModal-{{ usage_log.id }}"></i>
         </div>
         {% endfor %}
         {% else %}
@@ -423,19 +524,23 @@
     <div class="modal-overlay" id="usageActionModal-{{ usage_log.id }}">
         <div class="modal-content">
             <div class="target-record-card">
+                <span class="record-color-dot" style="background-color: {{ usage_log.device_color or '#d3d3d3' }};" aria-hidden="true"></span>
                 <div class="record-info">
                     <div class="record-header">
                         <span class="record-name">{{ usage_log.device_name }}</span>
-                        {% if usage_log.estimated_cost_yen is not none %}
-                        <span class="record-price">{{ usage_log.estimated_cost_yen }}円（目安）</span>
+                        {% if usage_log.estimated_cost_yen is not none and not usage_log.is_running %}
+                        <span class="record-price">{{ usage_log.estimated_cost_yen }}円</span>
                         {% endif %}
                     </div>
                     <div class="record-time">
-                        ON &nbsp; {{ usage_log.start_time_display }}
-                        {% if usage_log.end_time_display %}
-                        <br>OFF &nbsp; {{ usage_log.end_time_display }}
-                        {% else %}
-                        <br>運転中
+                        <div class="record-time-main">
+                            ON &nbsp; {{ usage_log.start_time_display }}
+                            {% if usage_log.end_time_display %}
+                            <br>OFF &nbsp; {{ usage_log.end_time_display }}
+                            {% endif %}
+                        </div>
+                        {% if usage_log.is_running %}
+                        <span class="badge-status badge-on">運転中</span>
                         {% endif %}
                     </div>
                 </div>
@@ -470,10 +575,16 @@
     usageCheckIcons.forEach(function (usageCheckIcon) {
         usageCheckIcon.addEventListener("click", function () {
             const modalId = usageCheckIcon.dataset.modalId;
-            const targetModal = document.getElementById(modalId);
-            if (targetModal) {
-                targetModal.classList.add("active");
+            if (!modalId) {
+                return;
             }
+
+            const targetModal = document.getElementById(modalId);
+            if (!targetModal) {
+                return;
+            }
+
+            targetModal.classList.add("active");
         });
     });
 

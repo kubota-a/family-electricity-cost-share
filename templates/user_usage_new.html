@@ -25,7 +25,7 @@
         }
 
         body {
-            background-color: #f0f0f0;
+            background-color: rgba(223, 221, 221, 1);
             display: flex;
             justify-content: center;
             align-items: flex-start;
@@ -67,6 +67,9 @@
             align-items: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 20;
         }
         .header-logo i { color: #e8a0ad; font-size: 1.4rem; }
         .header-logo {
@@ -78,22 +81,23 @@
             left: 50%;
             transform: translateX(-50%);
             font-weight: bold;
-            color: var(--accent-pink-dark);
-            font-size: clamp(0.9rem, 4vw, 1.1rem);
+            color: rgba(196, 122, 138, 1);
+            font-size: 21px;
         }
 
         main {
             flex-grow: 1;
-            padding: 25px 25px;
+            padding: 18px 25px 28px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             gap: 20px;
         }
 
         .new-log-form {
             width: 100%;
+            margin-top: 4mm;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -155,19 +159,39 @@
         .flash-message {
             color: #2ecc71;
             font-weight: bold;
-            font-size: 1rem;
+            font-size: 20px;
             margin: 2px 0;
             text-align: center;
         }
+        .flash-message.success {
+            color: #26B562;
+        }
         .flash-message.danger {
             color: #d9534f;
+        }
+        .flash-message.notice {
+            color: #666;
+        }
+
+        .empty-state-message {
+            width: 100%;
+            background: #fff;
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: #666;
+            font-weight: bold;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            box-shadow: var(--shadow);
+            text-align: center;
         }
 
         .confirm-area {
             display: flex;
             align-items: center;
             gap: 15px;
-            margin: 5px 0;
+            margin-top: calc(5px - 5mm);
+            margin-bottom: 5px;
         }
 
         .confirm-icon {
@@ -195,24 +219,28 @@
             width: 100%;
             max-width: 240px;
             padding: 14px;
-            border-radius: 12px;
-            border: 3px solid #666;
-            background: #fff;
-            color: var(--text-color);
-            font-size: clamp(1.1rem, 5vw, 1.3rem);
+            border-radius: 40px;
+            border: none;
+            background-color: rgba(245, 183, 177, 1);
+            color: rgba(122, 58, 72, 1);
+            font-size: 25px;
             font-weight: bold;
+            line-height: 1;
             cursor: pointer;
         }
 
         .btn-cancel {
             width: 100%;
-            max-width: 170px;
+            max-width: 150px;
             padding: 10px;
             border-radius: 10px;
-            border: 1px solid #999;
-            background: #f8f8f8;
+            border-color: rgba(0, 0, 0, 0);
+            border-image: none;
+            border-width: 0px;
+            border-style: none;
+            background: rgba(219, 219, 219, 1);
             color: #666;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
             text-decoration: none;
@@ -228,7 +256,7 @@
         <a href="{{ url_for('index') }}" class="header-logo" aria-label="トップへ戻る">
             <i class="fas fa-home"></i>
         </a>
-        <div class="header-title">忘れた分を追加する</div>
+        <div class="header-title">忘れた分を追加</div>
     </header>
 
     <main>
@@ -238,7 +266,7 @@
         <div class="form-group">
             <span class="label-text">使った機器</span>
             <div class="select-wrapper">
-                <select name="device_id">
+                <select name="device_id" {% if not devices %}disabled{% endif %}>
                     <option value="" disabled {% if not form_data.device_id %}selected{% endif %}>選択してください</option>
                     {% for device in devices %}
                     <option
@@ -251,6 +279,12 @@
                 </select>
             </div>
         </div>
+        {% if not devices %}
+        <div class="empty-state-message">
+            登録されている機器がありません。<br>
+            機器を登録してから、使用記録を追加してください。
+        </div>
+        {% endif %}
 
         <div class="form-group">
             <span class="label-text">運転を開始した日時</span>
@@ -266,7 +300,8 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% set category, message = messages[-1] %}
-        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% set flash_class = 'success' if category == 'success' else ('danger' if category == 'danger' else 'notice') %}
+        <div class="flash-message {{ flash_class }}">{{ message }}</div>
         {% else %}
         <div class="flash-message"></div>
         {% endif %}
@@ -278,7 +313,7 @@
         </div>
 
         <div class="button-group">
-            <button class="btn-main" type="submit">追加する</button>
+            <button class="btn-main" type="submit" {% if not devices %}disabled{% endif %}>追加する</button>
             <a href="{{ url_for('user_top') }}" class="btn-cancel">やめる</a>
         </div>
         </form>
