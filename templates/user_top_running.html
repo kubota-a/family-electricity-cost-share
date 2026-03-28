@@ -120,7 +120,10 @@
             color: #666;
             font-weight: bold;
             box-shadow: var(--shadow);
-            font-size: 0.9rem;
+            font-size: 20px;
+        }
+        .flash-message.success {
+            color: #26B562;
         }
         .flash-message.danger {
             color: #d9534f;
@@ -330,7 +333,7 @@
             flex-direction: column;
             gap: 12px;
             align-items: center;
-            margin-top: 10px;
+            margin-top: calc(10px - 6mm);
         }
 
         #stopConfirmModal .btn-main {

@@ -1032,6 +1032,7 @@ def user_usage_logs():
                 "id": usage_log.id,
                 "device_name": usage_log.device.name,
                 "device_color": usage_log.device.color,
+                "is_running": usage_log.end_time is None,
                 "start_time_display": format_datetime_for_jst_display(usage_log.start_time),
                 "end_time_display": (
                     format_datetime_for_jst_display(usage_log.end_time)
@@ -1312,6 +1313,8 @@ def user_usage_delete(usage_log_id):
     usage_log = {
         "id": target_usage_log.id,
         "device_name": target_usage_log.device.name,
+        "device_color": target_usage_log.device.color,
+        "is_running": target_usage_log.end_time is None,
         "start_time_display": format_datetime_for_jst_display(target_usage_log.start_time),
         "end_time_display": (
             format_datetime_for_jst_display(target_usage_log.end_time)

@@ -141,7 +141,7 @@
         }
 
         .latest-card .card-amount {
-            font-size: 25px;
+            font-size: 23px;
             color: rgba(122, 58, 72, 1);
             letter-spacing: 0.5px;
             font-weight: 700;
@@ -270,7 +270,7 @@
             href="{{ url_for('user_share_amount_detail', finalized_bill_id=latest_record.bill_id) }}"
         >
             <span class="card-date">{{ latest_record.period_range_display }}<br>利用分</span>
-            <span class="card-amount">シェア金額： {{ latest_record.share_amount_display }}</span>
+            <span class="card-amount">シェア金額：{{ latest_record.share_amount_display }}</span>
         </a>
     </div>
     {% endif %}
