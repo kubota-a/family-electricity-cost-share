@@ -364,7 +364,7 @@
                             </div>
                             <div class="modal-actions">
                                 <button class="btn-cancel" type="button" onclick="closeAllModals()">キャンセル</button>
-                                <button class="btn-confirm" id="execConfirmPrice" type="submit">この内容で確定する</button>
+                                <button class="btn-confirm" id="execConfirmPrice" type="button">この内容で確定する</button>
                             </div>
                         </div>
                     </div>
@@ -626,6 +626,14 @@
             previewDebounceTimer = setTimeout(requestAutoPreview, 300);
         }
 
+        // モーダル未経由のsubmit（Enterキー送信を含む）は保存させない
+        billConfirmForm.addEventListener('submit', (event) => {
+            if (isConfirmedByModal.value === 'true') {
+                return;
+            }
+            event.preventDefault();
+        });
+
         openConfirmModalButton.addEventListener('click', () => {
             if (!previewReady) {
                 showDangerFlashMessage(latestPreviewErrorMessage || '入力内容を確認し、必須項目を正しく入力してください。');
@@ -637,6 +645,7 @@
 
         execConfirmPrice.addEventListener('click', () => {
             isConfirmedByModal.value = 'true';
+            billConfirmForm.requestSubmit();
         });
 
         modalOverlay.addEventListener('click', (event) => {

@@ -2140,7 +2140,13 @@ def admin_bill_confirm():
             form_usage_kwh=form_usage_kwh,
         )
 
-        if is_confirmed_by_modal and preview_result["is_ready"] and preview_result["save_payload"] is not None:
+        # モーダル未経由のPOSTは保存禁止（Enterキー送信などを含む）
+        if not is_confirmed_by_modal:
+            if preview_result["errors"]:
+                flash(preview_result["errors"][0], "danger")
+            else:
+                flash("確認モーダルから確定を実行してください。", "danger")
+        elif preview_result["is_ready"] and preview_result["save_payload"] is not None:
             save_payload = preview_result["save_payload"]
             try:
                 finalized_bill = FinalizedBill(
@@ -2180,8 +2186,6 @@ def admin_bill_confirm():
                 return redirect(url_for("admin_bills"))
         elif preview_result["errors"]:
             flash(preview_result["errors"][0], "danger")
-        elif not is_confirmed_by_modal:
-            flash("確認モーダルから確定を実行してください。", "danger")
 
     return render_template(
         "admin_bill_confirm.html",
