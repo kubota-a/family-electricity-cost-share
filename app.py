@@ -275,9 +275,6 @@ def build_bill_preview_cards(user_members, period_start_utc, period_end_utc, uni
         .all()
     )
 
-    if not ended_logs:
-        return None, "対象期間に終了済みの使用記録がありません。", None, None
-
     for usage_log in ended_logs:
         start_time_utc = ensure_utc_aware(usage_log.start_time)
         end_time_utc = ensure_utc_aware(usage_log.end_time)
