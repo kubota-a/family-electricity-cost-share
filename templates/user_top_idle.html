@@ -351,6 +351,9 @@
             margin-bottom: 10px;
             color: var(--accent-pink);
         }
+        .action-card-icon-doc {
+            font-size: calc(2.5rem - 1mm);
+        }
 
         .section-title {
             text-align: left;
@@ -451,11 +454,11 @@
 
         <div class="action-grid">
             <a href="{{ url_for('user_usage_new') }}" class="action-card">
-                <i class="fas fa-plus action-card-icon"></i>
+                <i class="fas fa-plus-circle action-card-icon"></i>
                 <div>忘れた分<br>を追加</div>
             </a>
             <a href="{{ url_for('user_usage_logs') }}" class="action-card">
-                <i class="fas fa-file-alt action-card-icon"></i>
+                <i class="fas fa-file-alt action-card-icon action-card-icon-doc"></i>
                 <div>記録を<br>みる</div>
             </a>
         </div>
