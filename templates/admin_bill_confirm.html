@@ -85,7 +85,7 @@
 
         /* 右側：カルーセル */
         .preview-section { display: flex; flex-direction: column; align-items: center; }
-        .preview-title { font-weight: bold; color: #666; margin-bottom: 15px; width: 100%; text-align: left; padding-left: 10px;}
+        .preview-title { font-weight: bold; color: #666; margin-bottom: 15px; width: 100%; text-align: center; padding-left: 10px;}
         .preview-empty-message {
             width: 100%;
             background: #fff;
@@ -97,6 +97,26 @@
             font-size: 0.9rem;
             line-height: 1.5;
             margin-bottom: 12px;
+        }
+        .preview-error-message {
+            width: 100%;
+            background: #fff;
+            border: 1px solid #ffcdd2;
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: #c62828;
+            font-weight: bold;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            display: none;
+        }
+        .preview-error-list {
+            margin: 0;
+            padding-left: 1.2em;
+        }
+        .preview-error-list li + li {
+            margin-top: 4px;
         }
         
         .carousel-vertical { height: 620px; position: relative; display: flex; flex-direction: column; align-items: center; gap: 20px; }
@@ -360,6 +380,9 @@
                     プレビューを表示できません。
                 </div>
                 {% endif %}
+                <div id="previewErrorMessage" class="preview-error-message" aria-live="polite">
+                    <ul id="previewErrorList" class="preview-error-list"></ul>
+                </div>
                 <div class="carousel-vertical">
                     <button class="nav-btn" onclick="scrollCarousel(-1)"><i class="fas fa-chevron-up"></i></button>
                     <div class="carousel-track" id="previewCarousel">
@@ -440,7 +463,10 @@
         let previewRequestSerial = 0;
         let previewDebounceTimer = null;
         let latestPreviewErrorMessage = null;
+        let latestPreviewErrors = [];
         const confirmFlashMessage = document.getElementById('confirmFlashMessage');
+        const previewErrorMessage = document.getElementById('previewErrorMessage');
+        const previewErrorList = document.getElementById('previewErrorList');
 
         function openModal(id) {
             document.getElementById(id).classList.add('is-open');
@@ -508,6 +534,21 @@
             delete confirmFlashMessage.dataset.clientMessage;
         }
 
+        function showPreviewErrors(errors) {
+            previewErrorList.innerHTML = '';
+            errors.forEach((message) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = message;
+                previewErrorList.appendChild(listItem);
+            });
+            previewErrorMessage.style.display = 'block';
+        }
+
+        function hidePreviewErrors() {
+            previewErrorList.innerHTML = '';
+            previewErrorMessage.style.display = 'none';
+        }
+
         function renderPreviewCards(previewMembers) {
             const cardHtml = previewMembers.map((member) => {
                 return `
@@ -528,6 +569,8 @@
             if (!hasRequiredInput()) {
                 resetPreviewDisplay();
                 latestPreviewErrorMessage = null;
+                latestPreviewErrors = [];
+                hidePreviewErrors();
                 return;
             }
 
@@ -544,9 +587,11 @@
                     return;
                 }
                 if (!response.ok || !data.ok) {
-                    latestPreviewErrorMessage = (data.errors && data.errors.length > 0)
-                        ? data.errors[0]
-                        : '入力内容を確認してください。';
+                    latestPreviewErrors = (data.errors && data.errors.length > 0)
+                        ? data.errors
+                        : ['入力内容を確認してください。'];
+                    latestPreviewErrorMessage = latestPreviewErrors[0];
+                    showPreviewErrors(latestPreviewErrors);
                     resetPreviewDisplay();
                     return;
                 }
@@ -560,10 +605,14 @@
                 renderPreviewCards(data.preview_members);
                 previewReady = true;
                 latestPreviewErrorMessage = null;
+                latestPreviewErrors = [];
+                hidePreviewErrors();
                 hideFlashMessageIfClientShown();
             } catch (error) {
                 if (currentSerial === previewRequestSerial) {
                     latestPreviewErrorMessage = 'プレビューの更新に失敗しました。入力内容を確認してください。';
+                    latestPreviewErrors = [latestPreviewErrorMessage];
+                    showPreviewErrors(latestPreviewErrors);
                     resetPreviewDisplay();
                 }
             }
