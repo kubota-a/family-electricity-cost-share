@@ -63,6 +63,7 @@
 
         .form-group { margin-bottom: 20px; }
         .label-text { display: block; font-size: 0.85rem; font-weight: bold; color: #777; margin-bottom: 8px; }
+        .bill-input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         
         .input-row { display: flex; gap: 10px; align-items: center; }
         .input-row input[type="date"] { flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; }
@@ -223,14 +224,21 @@
 
         /* --- レスポンシブ --- */
         @media (max-width: 900px) {
+            body { flex-direction: column; }
             .content-grid { grid-template-columns: 1fr; }
-            .sidebar { width: 100%; height: auto; position: relative; border-bottom: 1px solid var(--border-color); }
+            .content-grid > * { min-width: 0; }
+            .sidebar { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid var(--border-color); }
             .nav-menu { display: flex; overflow-x: auto; padding: 0; }
             .nav-item { padding: 15px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
-            .nav-item.active { border-bottom: 3px solid var(--primary-color); }
+            .nav-item.active { border-left: none; border-bottom: 3px solid var(--primary-color); }
             .main-content { margin-left: 0; padding: 20px; }
+            #billConfirmForm, .form-card, .preview-section, .carousel-vertical, .carousel-track { width: 100%; min-width: 0; }
+            .preview-section { align-items: stretch; }
+            .bill-input-grid { grid-template-columns: 1fr; gap: 0; }
+            .input-row { flex-direction: column; align-items: stretch; }
             .carousel-vertical { height: auto; flex-direction: row; width: 100%; overflow-x: auto; }
             .carousel-track { flex-direction: row; overflow-x: auto; height: auto; width: 100%; }
+            .preview-card { width: 260px; min-width: 260px; }
             .nav-btn { display: none; }
         }
         @media (max-width: 480px) {
@@ -296,7 +304,7 @@
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="bill-input-grid">
                     <div class="form-group">
                         <span class="label-text">請求総額</span>
                         <div class="unit-input-wrapper" data-unit="円">
