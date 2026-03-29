@@ -106,7 +106,7 @@ class FinalizedBill(db.Model):
     period_end = db.Column(db.DateTime(timezone=True), nullable=False)
     billing_amount = db.Column(db.Numeric(10, 2), nullable=False)
     base_fee = db.Column(db.Numeric(10, 2), nullable=False)
-    usage_kwh = db.Column(db.Numeric(6, 3), nullable=False)
+    usage_kwh = db.Column(db.Numeric(8, 3), nullable=False)
     unit_price = db.Column(db.Numeric(10, 2), nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),

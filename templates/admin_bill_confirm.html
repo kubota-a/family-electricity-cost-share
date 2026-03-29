@@ -63,6 +63,7 @@
 
         .form-group { margin-bottom: 20px; }
         .label-text { display: block; font-size: 0.85rem; font-weight: bold; color: #777; margin-bottom: 8px; }
+        .bill-input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         
         .input-row { display: flex; gap: 10px; align-items: center; }
         .input-row input[type="date"] { flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; }
@@ -85,7 +86,7 @@
 
         /* 右側：カルーセル */
         .preview-section { display: flex; flex-direction: column; align-items: center; }
-        .preview-title { font-weight: bold; color: #666; margin-bottom: 15px; width: 100%; text-align: left; padding-left: 10px;}
+        .preview-title { font-weight: bold; color: #666; margin-bottom: 15px; width: 100%; text-align: center; padding-left: 10px;}
         .preview-empty-message {
             width: 100%;
             background: #fff;
@@ -98,12 +99,32 @@
             line-height: 1.5;
             margin-bottom: 12px;
         }
+        .preview-error-message {
+            width: 100%;
+            background: #fff;
+            border: 1px solid #ffcdd2;
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: #c62828;
+            font-weight: bold;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            display: none;
+        }
+        .preview-error-list {
+            margin: 0;
+            padding-left: 1.2em;
+        }
+        .preview-error-list li + li {
+            margin-top: 4px;
+        }
         
         .carousel-vertical { height: 620px; position: relative; display: flex; flex-direction: column; align-items: center; gap: 20px; }
         .carousel-track { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; padding: 10px 0; height: 100%; width: 280px; }
         .carousel-track::-webkit-scrollbar { display: none; }
 
-        .preview-card { min-height: 160px; width: 100%; border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; scroll-snap-align: start; box-shadow: 0 2px 8px rgba(0,0,0,0.04); flex-shrink: 0; }
+        .preview-card { min-height: 160px; width: 100%; border-radius: 12px; border: 1px solid rgba(207, 206, 206, 1); padding: 15px; scroll-snap-align: start; box-shadow: 0 2px 8px rgba(0,0,0,0.04); flex-shrink: 0; }
         .preview-card h3 { font-size: 1rem; padding-bottom: 8px; margin-bottom: 8px; text-align: center; color: #555; }
         
         .price-details-box { background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 12px; }
@@ -203,14 +224,21 @@
 
         /* --- レスポンシブ --- */
         @media (max-width: 900px) {
+            body { flex-direction: column; }
             .content-grid { grid-template-columns: 1fr; }
-            .sidebar { width: 100%; height: auto; position: relative; border-bottom: 1px solid var(--border-color); }
+            .content-grid > * { min-width: 0; }
+            .sidebar { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid var(--border-color); }
             .nav-menu { display: flex; overflow-x: auto; padding: 0; }
             .nav-item { padding: 15px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
-            .nav-item.active { border-bottom: 3px solid var(--primary-color); }
+            .nav-item.active { border-left: none; border-bottom: 3px solid var(--primary-color); }
             .main-content { margin-left: 0; padding: 20px; }
+            #billConfirmForm, .form-card, .preview-section, .carousel-vertical, .carousel-track { width: 100%; min-width: 0; }
+            .preview-section { align-items: stretch; }
+            .bill-input-grid { grid-template-columns: 1fr; gap: 0; }
+            .input-row { flex-direction: column; align-items: stretch; }
             .carousel-vertical { height: auto; flex-direction: row; width: 100%; overflow-x: auto; }
             .carousel-track { flex-direction: row; overflow-x: auto; height: auto; width: 100%; }
+            .preview-card { width: 260px; min-width: 260px; }
             .nav-btn { display: none; }
         }
         @media (max-width: 480px) {
@@ -229,10 +257,10 @@
         </a>
         <nav class="nav-menu">
             <a href="{{ url_for('index') }}" class="nav-item">HOME</a>
-            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
-            <a href="{{ url_for('admin_devices') }}" class="nav-item">機器</a>
+            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー管理</a>
+            <a href="{{ url_for('admin_devices') }}" class="nav-item">機器管理</a>
             <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item active">電気料金の確定</a>
-            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済の電気料金</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済みの電気料金</a>
         </nav>
         <form action="{{ url_for('logout') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -276,7 +304,7 @@
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="bill-input-grid">
                     <div class="form-group">
                         <span class="label-text">請求総額</span>
                         <div class="unit-input-wrapper" data-unit="円">
@@ -344,7 +372,7 @@
                             </div>
                             <div class="modal-actions">
                                 <button class="btn-cancel" type="button" onclick="closeAllModals()">キャンセル</button>
-                                <button class="btn-confirm" id="execConfirmPrice" type="submit">この内容で確定する</button>
+                                <button class="btn-confirm" id="execConfirmPrice" type="button">この内容で確定する</button>
                             </div>
                         </div>
                     </div>
@@ -360,6 +388,9 @@
                     プレビューを表示できません。
                 </div>
                 {% endif %}
+                <div id="previewErrorMessage" class="preview-error-message" aria-live="polite">
+                    <ul id="previewErrorList" class="preview-error-list"></ul>
+                </div>
                 <div class="carousel-vertical">
                     <button class="nav-btn" onclick="scrollCarousel(-1)"><i class="fas fa-chevron-up"></i></button>
                     <div class="carousel-track" id="previewCarousel">
@@ -440,7 +471,10 @@
         let previewRequestSerial = 0;
         let previewDebounceTimer = null;
         let latestPreviewErrorMessage = null;
+        let latestPreviewErrors = [];
         const confirmFlashMessage = document.getElementById('confirmFlashMessage');
+        const previewErrorMessage = document.getElementById('previewErrorMessage');
+        const previewErrorList = document.getElementById('previewErrorList');
 
         function openModal(id) {
             document.getElementById(id).classList.add('is-open');
@@ -508,6 +542,21 @@
             delete confirmFlashMessage.dataset.clientMessage;
         }
 
+        function showPreviewErrors(errors) {
+            previewErrorList.innerHTML = '';
+            errors.forEach((message) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = message;
+                previewErrorList.appendChild(listItem);
+            });
+            previewErrorMessage.style.display = 'block';
+        }
+
+        function hidePreviewErrors() {
+            previewErrorList.innerHTML = '';
+            previewErrorMessage.style.display = 'none';
+        }
+
         function renderPreviewCards(previewMembers) {
             const cardHtml = previewMembers.map((member) => {
                 return `
@@ -528,6 +577,8 @@
             if (!hasRequiredInput()) {
                 resetPreviewDisplay();
                 latestPreviewErrorMessage = null;
+                latestPreviewErrors = [];
+                hidePreviewErrors();
                 return;
             }
 
@@ -544,9 +595,11 @@
                     return;
                 }
                 if (!response.ok || !data.ok) {
-                    latestPreviewErrorMessage = (data.errors && data.errors.length > 0)
-                        ? data.errors[0]
-                        : '入力内容を確認してください。';
+                    latestPreviewErrors = (data.errors && data.errors.length > 0)
+                        ? data.errors
+                        : ['入力内容を確認してください。'];
+                    latestPreviewErrorMessage = latestPreviewErrors[0];
+                    showPreviewErrors(latestPreviewErrors);
                     resetPreviewDisplay();
                     return;
                 }
@@ -560,10 +613,14 @@
                 renderPreviewCards(data.preview_members);
                 previewReady = true;
                 latestPreviewErrorMessage = null;
+                latestPreviewErrors = [];
+                hidePreviewErrors();
                 hideFlashMessageIfClientShown();
             } catch (error) {
                 if (currentSerial === previewRequestSerial) {
                     latestPreviewErrorMessage = 'プレビューの更新に失敗しました。入力内容を確認してください。';
+                    latestPreviewErrors = [latestPreviewErrorMessage];
+                    showPreviewErrors(latestPreviewErrors);
                     resetPreviewDisplay();
                 }
             }
@@ -577,6 +634,14 @@
             previewDebounceTimer = setTimeout(requestAutoPreview, 300);
         }
 
+        // モーダル未経由のsubmit（Enterキー送信を含む）は保存させない
+        billConfirmForm.addEventListener('submit', (event) => {
+            if (isConfirmedByModal.value === 'true') {
+                return;
+            }
+            event.preventDefault();
+        });
+
         openConfirmModalButton.addEventListener('click', () => {
             if (!previewReady) {
                 showDangerFlashMessage(latestPreviewErrorMessage || '入力内容を確認し、必須項目を正しく入力してください。');
@@ -588,6 +653,7 @@
 
         execConfirmPrice.addEventListener('click', () => {
             isConfirmedByModal.value = 'true';
+            billConfirmForm.requestSubmit();
         });
 
         modalOverlay.addEventListener('click', (event) => {

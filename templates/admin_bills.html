@@ -83,7 +83,7 @@
             flex: 0 0 auto; 
             min-height: 170px;
             border-radius: 12px; 
-            border: 1px solid var(--border-color); 
+            border: 1px solid rgba(207, 206, 206, 1); 
             padding: 15px; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
             position: relative; 
@@ -143,10 +143,10 @@
         </a>
         <nav class="nav-menu">
             <a href="{{ url_for('index') }}" class="nav-item">HOME</a>
-            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
-            <a href="{{ url_for('admin_devices') }}" class="nav-item">機器</a>
+            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー管理</a>
+            <a href="{{ url_for('admin_devices') }}" class="nav-item">機器管理</a>
             <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item">電気料金の確定</a>
-            <a href="{{ url_for('admin_bills') }}" class="nav-item active">確定済の電気料金</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item active">確定済みの電気料金</a>
         </nav>
         <form action="{{ url_for('logout') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -159,7 +159,7 @@
     <main class="main-content">
 
         <!-- 見出し -->
-        <h2 class="page-title">確定済の電気料金</h2>
+        <h2 class="page-title">確定済みの電気料金</h2>
 
         <!-- flashメッセージ（見出し直下） -->
         {% with messages = get_flashed_messages(with_categories=true) %}

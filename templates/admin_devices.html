@@ -243,11 +243,21 @@
 
         .modal-actions button:hover { opacity: 0.85; }
 
-        @media (max-width: 768px) {
-            .sidebar { width: 100%; height: auto; position: relative; }
-            .main-content { margin-left: 0; }
+        @media (max-width: 900px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid var(--border-color); }
+            .nav-menu { display: flex; overflow-x: auto; padding: 0; }
+            .nav-item { padding: 15px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
+            .nav-item.active { border-left: none; border-bottom: 3px solid var(--primary-color); }
+            .main-content { margin-left: 0; padding: 20px; }
+            .form-grid { grid-template-columns: repeat(2, 1fr); }
+            .table-container { overflow-x: auto; }
+            table { min-width: 680px; table-layout: auto; }
+        }
+
+        @media (max-width: 640px) {
             .form-grid { grid-template-columns: 1fr; }
-            .form-footer { flex-direction: column; align-items: flex-end; }
+            .form-footer { justify-content: flex-end; }
         }
 
         @media (max-width: 480px) {
@@ -265,10 +275,10 @@
         </a>
         <nav class="nav-menu">
             <a href="{{ url_for('admin_top') }}" class="nav-item">HOME</a>
-            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー</a>
-            <a href="{{ url_for('admin_devices') }}" class="nav-item active">機器</a>
+            <a href="{{ url_for('admin_users') }}" class="nav-item">シェアメンバー管理</a>
+            <a href="{{ url_for('admin_devices') }}" class="nav-item active">機器管理</a>
             <a href="{{ url_for('admin_bill_confirm') }}" class="nav-item">電気料金の確定</a>
-            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済の電気料金</a>
+            <a href="{{ url_for('admin_bills') }}" class="nav-item">確定済みの電気料金</a>
         </nav>
         <form action="{{ url_for('logout') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

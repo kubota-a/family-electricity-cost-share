@@ -275,9 +275,6 @@ def build_bill_preview_cards(user_members, period_start_utc, period_end_utc, uni
         .all()
     )
 
-    if not ended_logs:
-        return None, "対象期間に終了済みの使用記録がありません。", None, None
-
     for usage_log in ended_logs:
         start_time_utc = ensure_utc_aware(usage_log.start_time)
         end_time_utc = ensure_utc_aware(usage_log.end_time)
@@ -2143,7 +2140,13 @@ def admin_bill_confirm():
             form_usage_kwh=form_usage_kwh,
         )
 
-        if is_confirmed_by_modal and preview_result["is_ready"] and preview_result["save_payload"] is not None:
+        # モーダル未経由のPOSTは保存禁止（Enterキー送信などを含む）
+        if not is_confirmed_by_modal:
+            if preview_result["errors"]:
+                flash(preview_result["errors"][0], "danger")
+            else:
+                flash("確認モーダルから確定を実行してください。", "danger")
+        elif preview_result["is_ready"] and preview_result["save_payload"] is not None:
             save_payload = preview_result["save_payload"]
             try:
                 finalized_bill = FinalizedBill(
@@ -2183,8 +2186,6 @@ def admin_bill_confirm():
                 return redirect(url_for("admin_bills"))
         elif preview_result["errors"]:
             flash(preview_result["errors"][0], "danger")
-        elif not is_confirmed_by_modal:
-            flash("確認モーダルから確定を実行してください。", "danger")
 
     return render_template(
         "admin_bill_confirm.html",
